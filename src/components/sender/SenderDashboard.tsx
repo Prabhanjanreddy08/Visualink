@@ -5,7 +5,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { SenderSession } from '../../lib/transfer/sender';
 import { TransferMetrics } from '../../lib/performance/metrics';
 import { QRDisplay } from './QRDisplay';
-import { Pause, Play, XCircle, Terminal, Radio } from 'lucide-react';
+import { Pause, Play, XCircle } from 'lucide-react';
 
 export interface SenderDashboardProps {
   file: File;
@@ -23,7 +23,6 @@ export function SenderDashboard({ file, pairCode, onCancel }: SenderDashboardPro
   const [logLines, setLogLines] = useState<string[]>([]);
 
   useEffect(() => {
-    let isCancelled = false;
     const session = new SenderSession({ file, pairCode });
     sessionRef.current = session;
     setSessionIdHex(session.getSessionIdHex());
@@ -31,30 +30,28 @@ export function SenderDashboard({ file, pairCode, onCancel }: SenderDashboardPro
     addLog(`INIT SESSION ID [0x${session.getSessionIdHex()}] FILE: ${file.name} (${formatBytes(file.size)})`);
 
     session.prepare((step, pct) => {
-      if (isCancelled) return;
       setStatusText(`${step} (${pct}%)`);
+      addLog(`PREPARE: ${step} [${pct}%]`);
     }).then((meta) => {
-      if (isCancelled) return;
       setStatusText('Transmitting Optical Stream...');
       addLog(`METADATA COMPILED: TOTAL_BLOCKS=${meta.totalBlocks} BLOCK_SIZE=${meta.blockSize}B SHA256=${meta.sha256.substring(0, 8)}...`);
-      addLog('OPTICAL ENGINE START: BROADCASTING ANIMATED QR STREAM AT 30 FPS...');
+      addLog('OPTICAL ENGINE START: TRANSMITTING ANIMATED QR STREAM AT 30 FPS...');
 
       if (canvasRef.current) {
         session.startTransmission(canvasRef.current, 30, (m) => {
-          if (!isCancelled) setMetrics(m);
+          setMetrics(m);
         });
       }
     });
 
     return () => {
-      isCancelled = true;
       session.stop();
     };
   }, [file, pairCode]);
 
   const addLog = (msg: string) => {
     const time = new Date().toISOString().substring(11, 19);
-    setLogLines(prev => [`[${time}] ${msg}`, ...prev.slice(0, 4)]);
+    setLogLines(prev => [`[${time}] ${msg}`, ...prev.slice(0, 5)]);
   };
 
   const togglePause = () => {
@@ -84,12 +81,17 @@ export function SenderDashboard({ file, pairCode, onCancel }: SenderDashboardPro
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const totalFrames = metrics?.totalFrames ?? 0;
-  const totalBlocks = metrics?.totalBlocks ?? 1;
-  const loopNumber = Math.floor(totalFrames / Math.max(1, totalBlocks)) + 1;
+  // On the sender side, "Progress" represents how many packets/blocks have been broadcast.
+  // Sender broadcasts infinitely until stopped, but progress shows current cycle count vs total source blocks.
+  const currentSentBlocks = metrics?.currentBlocks ?? 0;
+  const totalFileBlocks = metrics?.totalBlocks ?? 1;
+  const pct = Math.min(100, Math.round((currentSentBlocks / totalFileBlocks) * 100));
+
+  const filledBlocks = Math.floor((pct / 100) * 30);
+  const asciiProgressBar = `[${'█'.repeat(filledBlocks)}${'░'.repeat(Math.max(0, 30 - filledBlocks))}] ${pct.toFixed(1)}%`;
 
   return (
-    <div className="w-full max-w-4xl mx-auto space-y-4 font-mono text-emerald-400">
+    <div className="w-full max-w-4xl mx-auto space-y-4 font-mono">
       {/* Terminal Window Header */}
       <div className="term-box rounded-lg overflow-hidden">
         <div className="term-header-bar">
@@ -97,87 +99,85 @@ export function SenderDashboard({ file, pairCode, onCancel }: SenderDashboardPro
             <span className="w-3 h-3 rounded-full bg-rose-500/80 inline-block" />
             <span className="w-3 h-3 rounded-full bg-amber-500/80 inline-block" />
             <span className="w-3 h-3 rounded-full bg-emerald-500/80 inline-block" />
-            <span className="ml-2 font-bold text-emerald-300">visualink-cli@transmitter:~$ ./send_optical</span>
+            <span className="ml-2 text-emerald-400 font-bold">visualink-cli@transmitter:~$ ./send_optical</span>
           </div>
           <span className="text-emerald-500/60">PROTOCOL: VLQR/1</span>
         </div>
 
-        <div className="p-4 space-y-4">
+        <div className="p-4 space-y-4 text-emerald-400">
           <div className="text-xs border-b border-emerald-500/30 pb-2 flex justify-between items-center">
-            <span className="flex items-center gap-2">
-              <Radio className="w-4 h-4 text-emerald-400 animate-ping" />
-              <span>TRANSMITTER_STATUS: <span className="text-emerald-200 font-bold">{statusText}</span></span>
-            </span>
-            <span className="text-amber-400 text-[11px]">[AIR-GAPPED SENDER]</span>
+            <span>&gt; TRANSMITTER_STATUS: <span className="text-emerald-300 font-bold">{statusText}</span></span>
+            <span className="text-amber-400 text-[11px]">[AIR-GAPPED]</span>
           </div>
 
-          {/* ASCII Dashboard Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-1.5 text-center text-xs">
+          {/* ASCII Dashboard Box */}
+          <div className="grid grid-cols-3 sm:grid-cols-9 gap-1 text-center text-xs">
             <div className="metric-box">
               <div className="metric-label">CAPT_FPS</div>
-              <div className="metric-value">{metrics?.captureFps ?? 30}</div>
+              <div className="metric-value">{metrics?.captureFps ?? 60}</div>
             </div>
             <div className="metric-box">
-              <div className="metric-label">FILE_SIZE</div>
-              <div className="metric-value text-xs pt-1.5">{formatBytes(file.size)}</div>
+              <div className="metric-label">DECD_FPS</div>
+              <div className="metric-value text-emerald-600">—</div>
+            </div>
+            <div className="metric-box">
+              <div className="metric-label">GOODPUT</div>
+              <div className="metric-value">{metrics?.goodputKBps ?? 0}K/s</div>
             </div>
             <div className="metric-box">
               <div className="metric-label">ELAPSED</div>
               <div className="metric-value">{formatSeconds(metrics?.elapsedSeconds ?? 0)}</div>
             </div>
             <div className="metric-box">
-              <div className="metric-label">FRAMES_SENT</div>
-              <div className="metric-value text-cyan-300">{totalFrames.toLocaleString()}</div>
+              <div className="metric-label">DROPPED</div>
+              <div className="metric-value text-amber-400">{metrics?.droppedFrames ?? 0}</div>
             </div>
             <div className="metric-box">
-              <div className="metric-label">SESSION_ID</div>
-              <div className="metric-value text-cyan-400 text-[11px] pt-1.5">{sessionIdHex}</div>
+              <div className="metric-label">FRAMES</div>
+              <div className="metric-value">{metrics?.totalFrames ?? 0}</div>
             </div>
             <div className="metric-box">
-              <div className="metric-label">FILE_BLOCKS</div>
-              <div className="metric-value text-xs pt-1.5">{metrics?.totalBlocks ?? 0} BLOCKS</div>
+              <div className="metric-label">SESSION</div>
+              <div className="metric-value text-cyan-400 text-[11px] pt-1">{sessionIdHex}</div>
             </div>
             <div className="metric-box">
-              <div className="metric-label">RATELESS_LOOP</div>
-              <div className="metric-value text-emerald-300 text-xs pt-1.5">LOOP #{loopNumber}</div>
+              <div className="metric-label">BLOCKS</div>
+              <div className="metric-value text-[11px] pt-1">{currentSentBlocks}/{totalFileBlocks}</div>
             </div>
             <div className="metric-box">
-              <div className="metric-label">PAYLOAD_RATE</div>
+              <div className="metric-label">PAYLOAD</div>
               <div className="metric-value">{metrics?.payloadKBps ?? 0}K/s</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* QR Display Canvas Frame */}
+      {/* QR Display Canvas */}
       <QRDisplay canvasRef={canvasRef} sessionIdHex={sessionIdHex} />
 
-      {/* Broadcasting Stream Status */}
+      {/* Terminal Progress & Log Output */}
       <div className="term-box p-4 rounded-lg space-y-3">
-        <div className="text-xs flex flex-col sm:flex-row justify-between items-start sm:items-center text-emerald-300">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            <span className="font-bold uppercase">BROADCASTING FOUNTAIN STREAM TO RECEIVER CAMERA</span>
-          </div>
-          <span className="text-slate-400 text-[11px] font-mono">
-            POINT RECEIVER CAMERA AT SCREEN
+        <div className="text-xs flex flex-col sm:flex-row justify-between items-start sm:items-center text-emerald-400">
+          <span>BROADCAST CYCLE: {asciiProgressBar}</span>
+          <span className="text-slate-400 text-[11px]">
+            {formatBytes(Math.min(file.size, metrics?.bytesTransferred ?? 0))} / {formatBytes(file.size)}
           </span>
         </div>
 
         {/* Live Terminal Console Log Feed */}
         <div className="bg-[#010503] p-3 rounded border border-emerald-500/20 text-[11px] text-emerald-400/90 font-mono space-y-1 overflow-hidden">
-          <div className="text-emerald-500/60 font-bold pb-1 border-b border-emerald-500/20">--- SENDER OPTICAL BROADCAST FEED ---</div>
+          <div className="text-emerald-500/60 font-bold pb-1 border-b border-emerald-500/20">--- TERMINAL LOG FEED ---</div>
           {logLines.map((line, idx) => (
             <div key={idx} className="truncate">
               <span className="text-emerald-600">&gt;</span> {line}
             </div>
           ))}
-          {logLines.length === 0 && <div>&gt; Initializing optical transmitter...<span className="term-cursor" /></div>}
+          {logLines.length === 0 && <div>&gt; Waiting for stream initialization...<span className="term-cursor" /></div>}
         </div>
       </div>
 
       {/* Action Buttons */}
-      <div className="flex gap-4 justify-center pt-1">
+      <div className="flex gap-4 justify-center pt-2">
         <button
           onClick={togglePause}
           className="px-6 py-2.5 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300 font-mono font-bold text-xs rounded shadow flex items-center gap-2 cursor-pointer transition-colors"
