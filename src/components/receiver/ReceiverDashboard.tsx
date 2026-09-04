@@ -24,7 +24,28 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
   const [sessionIdHex, setSessionIdHex] = useState('—');
   const [enteredPairCode, setEnteredPairCode] = useState(pairCode || '8492');
   const [logLines, setLogLines] = useState<string[]>([]);
+  const [isCameraActive, setIsCameraActive] = useState<boolean>(true);
+  const [scanCountdown, setScanCountdown] = useState<number>(5);
   const hasAutoDownloadedRef = useRef<boolean>(false);
+
+  // 5-Second Camera Scanner Timer: turns off camera and redirects to receiving section after 5s
+  useEffect(() => {
+    if (!isCameraActive || result) return;
+
+    const timer = setInterval(() => {
+      setScanCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setIsCameraActive(false);
+          addLog('CAMERA TURNED OFF AFTER 5S SCAN WINDOW — REDIRECTED TO RECEIVING SECTION');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isCameraActive, result]);
 
   useEffect(() => {
     const session = new ReceiverSession(enteredPairCode);
@@ -32,7 +53,7 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
 
     addLog('INIT CAMERA SCANNER ENGINE... WAITING FOR OPTICAL LOCK');
 
-    if (videoRef.current) {
+    if (videoRef.current && isCameraActive) {
       session.startScanning(
         videoRef.current,
         (meta) => {
@@ -67,7 +88,13 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
     return () => {
       session.stopScanning();
     };
-  }, [enteredPairCode]);
+  }, [enteredPairCode, isCameraActive]);
+
+  const handleReopenCamera = () => {
+    setScanCountdown(5);
+    setIsCameraActive(true);
+    addLog('RE-OPENED CAMERA SCANNER WINDOW (5s TIMER ACTIVE)');
+  };
 
   const addLog = (msg: string) => {
     const time = new Date().toISOString().substring(11, 19);
@@ -178,36 +205,64 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
       {/* Main View Area */}
       {!result ? (
         <div className="space-y-4">
-          <CameraScanner
-            videoRef={videoRef}
-            guidanceText={guidanceText}
-            isScanning={!result}
-            isLocked={Boolean(metadata || (sessionIdHex && sessionIdHex !== '—'))}
-          />
-
-          {metadata && (
-            <div className="term-box-cyan p-4 rounded-lg space-y-3">
-              <div className="text-xs text-cyan-400 flex justify-between items-center border-b border-cyan-500/20 pb-2">
-                <span className="flex items-center gap-1.5 font-bold text-cyan-300">
-                  <Zap className="w-4 h-4 text-cyan-400 animate-pulse" />
-                  [!] OPTICAL_LOCK_ESTABLISHED
-                </span>
-                <span className="text-cyan-200 font-bold">{formatBytes(metadata.fileSize)}</span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-xs text-cyan-300">
-                <div>FILE_NAME: <span className="font-bold text-slate-100">{metadata.fileName}</span></div>
-                <div>TOTAL_BLOCKS: <span className="font-bold text-cyan-400">{metadata.totalBlocks}</span></div>
-                <div>SHA256: <span className="text-slate-400">{metadata.sha256.substring(0, 16)}...</span></div>
-                <div>ENCRYPTION: <span className="text-amber-400">{metadata.encrypted ? 'AES-256-GCM' : 'DISABLED'}</span></div>
-              </div>
-
-              <div className="text-xs space-y-1 pt-1">
-                <div className="flex justify-between text-cyan-400">
-                  <span>RECEIVING STREAM:</span>
-                  <span>{asciiProgressBar}</span>
+          {isCameraActive ? (
+            <CameraScanner
+              videoRef={videoRef}
+              guidanceText={guidanceText}
+              isScanning={!result}
+              isLocked={Boolean(metadata || (sessionIdHex && sessionIdHex !== '—'))}
+              countdownSeconds={scanCountdown}
+            />
+          ) : (
+            /* Receiving Section Card (Camera Turned OFF) */
+            <div className="term-box-cyan p-5 rounded-lg space-y-4 bg-[#020a06] border-2 border-emerald-500/50 shadow-2xl">
+              <div className="flex items-center justify-between border-b border-emerald-500/30 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-emerald-300 font-bold text-xs uppercase tracking-wider">
+                    [ ✓ ] CAMERA TURNED OFF — RECEIVING SECTION ACTIVE
+                  </span>
                 </div>
+                <button
+                  type="button"
+                  onClick={handleReopenCamera}
+                  className="px-2.5 py-1 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 text-[11px] rounded font-mono transition-colors cursor-pointer"
+                >
+                  📷 RE-OPEN CAMERA SCANNER (5S)
+                </button>
               </div>
+
+              {metadata ? (
+                <div className="space-y-3 text-xs text-cyan-300">
+                  <div className="grid grid-cols-2 gap-2 bg-black/60 p-3 rounded border border-emerald-500/20">
+                    <div>FILE_NAME: <span className="font-bold text-slate-100">{metadata.fileName}</span></div>
+                    <div>FILE_SIZE: <span className="font-bold text-emerald-400">{formatBytes(metadata.fileSize)}</span></div>
+                    <div>TOTAL_BLOCKS: <span className="font-bold text-cyan-400">{metadata.totalBlocks}</span></div>
+                    <div>SHA256: <span className="text-slate-400">{metadata.sha256.substring(0, 14)}...</span></div>
+                  </div>
+
+                  <div className="space-y-1 pt-1">
+                    <div className="flex justify-between text-emerald-400 font-bold">
+                      <span>STREAM RECONSTRUCTION PROGRESS:</span>
+                      <span>{asciiProgressBar}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-6 space-y-3 text-xs text-amber-300">
+                  <div className="font-bold">[!] CAMERA TIMER EXPIRED BEFORE OPTICAL LOCK</div>
+                  <p className="text-slate-400 text-[11px]">
+                    No QR metadata locked within 5 seconds. Re-open camera scanner when sender screen is ready.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleReopenCamera}
+                    className="px-4 py-2 bg-emerald-950 hover:bg-emerald-900 border border-emerald-500 text-emerald-300 font-bold rounded cursor-pointer transition-colors"
+                  >
+                    📷 RE-OPEN CAMERA SCANNER (5S)
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
