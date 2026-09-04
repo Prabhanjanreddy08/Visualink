@@ -5,11 +5,11 @@
 import { getChunkInfo, readAllBlocks } from '../encoding/chunker';
 import { FountainEncoder } from '../encoding/fountain';
 import { FileMetadata, encodeMetadataPayload } from '../protocol/metadata';
-import { VLPacket, PacketType, serializePacket } from '../protocol/packet';
+import { VLPacket, PacketType, packetToQRString } from '../protocol/packet';
 import { computeFileSHA256 } from '../crypto/hashing';
 import { deriveKeyFromPairCode, generateIV, encryptBuffer } from '../crypto/encryption';
 import { MetricsTracker, TransferMetrics } from '../performance/metrics';
-import { renderBinaryQRToCanvas } from '../qr/encoder';
+import { renderQRToCanvas } from '../qr/encoder';
 
 export interface SenderConfig {
   file: File;
@@ -160,8 +160,8 @@ export class SenderSession {
       this.dataBlockSequence++;
     }
 
-    const binaryPacket = serializePacket(packet);
-    await renderBinaryQRToCanvas(canvas, binaryPacket, { width: 360, margin: 1, ecLevel: "L" });
+    const qrText = packetToQRString(packet);
+    await renderQRToCanvas(canvas, qrText, { width: 320, margin: 2, ecLevel: "M" });
 
     this.metrics.recordFrameRendered();
     this.renderFrameCount++;

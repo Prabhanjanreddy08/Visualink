@@ -14,7 +14,7 @@ export interface QROptions {
 }
 
 /**
- * Renders QR code string directly onto an HTMLCanvasElement with fixed dimensions to prevent layout blinking.
+ * Renders QR code string directly onto an HTMLCanvasElement with fixed 1:1 square dimensions.
  */
 export async function renderQRToCanvas(
   canvas: HTMLCanvasElement,
@@ -36,37 +36,6 @@ export async function renderQRToCanvas(
       light: lightColor,
     },
   });
-}
-
-/**
- * Renders raw binary Uint8Array directly into a Byte-Mode QR Code on canvas.
- * Byte mode provides 0% text expansion overhead, creating lower density Version 7 QR codes (45x45 modules)
- * that cameras scan with 100% precision at 60 FPS.
- */
-export async function renderBinaryQRToCanvas(
-  canvas: HTMLCanvasElement,
-  data: Uint8Array,
-  options?: QROptions
-): Promise<void> {
-  const ecLevel = options?.ecLevel || "L";
-  const margin = options?.margin ?? 1;
-  const targetWidth = options?.width ?? 360;
-  const darkColor = options?.darkColor || "#000000";
-  const lightColor = options?.lightColor || "#FFFFFF";
-
-  await QRCode.toCanvas(
-    canvas,
-    [{ data, mode: "byte" }] as unknown as string,
-    {
-      width: targetWidth,
-      errorCorrectionLevel: ecLevel,
-      margin,
-      color: {
-        dark: darkColor,
-        light: lightColor,
-      },
-    }
-  );
 }
 
 /**
