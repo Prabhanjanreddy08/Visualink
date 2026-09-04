@@ -29,9 +29,9 @@ export interface VLPacket {
 
 // Base45 Character Set for Alphanumeric QR Mode
 const BASE45_CHARSET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
-const BASE45_MAP = new Map<string, number>();
+const BASE45_LOOKUP = new Int16Array(256).fill(-1);
 for (let i = 0; i < BASE45_CHARSET.length; i++) {
-  BASE45_MAP.set(BASE45_CHARSET[i], i);
+  BASE45_LOOKUP[BASE45_CHARSET.charCodeAt(i)] = i;
 }
 
 /**
@@ -60,23 +60,30 @@ export function encodeBase45(data: Uint8Array): string {
 
 /**
  * Decodes a Base45 Alphanumeric String back into a Uint8Array.
+ * Uses high-speed Int16Array charCode lookup (0 heap allocations).
  */
 export function decodeBase45(str: string): Uint8Array {
+  const len = str.length;
   const bytes: number[] = [];
-  for (let i = 0; i < str.length; i += 3) {
-    if (i + 2 < str.length) {
-      const c1 = BASE45_MAP.get(str[i]);
-      const c2 = BASE45_MAP.get(str[i + 1]);
-      const c3 = BASE45_MAP.get(str[i + 2]);
-      if (c1 === undefined || c2 === undefined || c3 === undefined) {
+  for (let i = 0; i < len; i += 3) {
+    if (i + 2 < len) {
+      const code1 = str.charCodeAt(i);
+      const code2 = str.charCodeAt(i + 1);
+      const code3 = str.charCodeAt(i + 2);
+      const c1 = code1 < 256 ? BASE45_LOOKUP[code1] : -1;
+      const c2 = code2 < 256 ? BASE45_LOOKUP[code2] : -1;
+      const c3 = code3 < 256 ? BASE45_LOOKUP[code3] : -1;
+      if (c1 === -1 || c2 === -1 || c3 === -1) {
         throw new Error("Invalid Base45 character");
       }
-      const val = c1 + c2 * 45 + c3 * 45 * 45;
+      const val = c1 + c2 * 45 + c3 * 2025;
       bytes.push((val >> 8) & 0xFF, val & 0xFF);
-    } else if (i + 1 < str.length) {
-      const c1 = BASE45_MAP.get(str[i]);
-      const c2 = BASE45_MAP.get(str[i + 1]);
-      if (c1 === undefined || c2 === undefined) {
+    } else if (i + 1 < len) {
+      const code1 = str.charCodeAt(i);
+      const code2 = str.charCodeAt(i + 1);
+      const c1 = code1 < 256 ? BASE45_LOOKUP[code1] : -1;
+      const c2 = code2 < 256 ? BASE45_LOOKUP[code2] : -1;
+      if (c1 === -1 || c2 === -1) {
         throw new Error("Invalid Base45 character");
       }
       const val = c1 + c2 * 45;

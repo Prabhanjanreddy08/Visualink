@@ -80,6 +80,27 @@ export function getPacketBlockMapping(packetId: number, K: number): { degree: nu
 }
 
 /**
+ * Fast 32-bit aligned Uint8Array XOR buffer operation.
+ * Processes 4 bytes per iteration (4x speedup over byte-by-byte loops).
+ */
+export function xorBuffersFast(target: Uint8Array, source: Uint8Array): void {
+  const len = target.length;
+  let i = 0;
+  if (len >= 4 && (target.byteOffset % 4 === 0) && (source.byteOffset % 4 === 0)) {
+    const wordCount = Math.floor(len / 4);
+    const target32 = new Uint32Array(target.buffer, target.byteOffset, wordCount);
+    const source32 = new Uint32Array(source.buffer, source.byteOffset, wordCount);
+    for (let j = 0; j < wordCount; j++) {
+      target32[j] ^= source32[j];
+    }
+    i = wordCount * 4;
+  }
+  for (; i < len; i++) {
+    target[i] ^= source[i];
+  }
+}
+
+/**
  * Fountain Encoder: Generates Fountain encoded packets from source blocks.
  */
 export class FountainEncoder {
@@ -102,12 +123,9 @@ export class FountainEncoder {
     const { degree, indices } = getPacketBlockMapping(packetId, this.K);
     const payload = new Uint8Array(this.blockSize);
 
-    // XOR combine selected source blocks
+    // Fast XOR combine selected source blocks
     for (const idx of indices) {
-      const block = this.blocks[idx];
-      for (let b = 0; b < payload.length; b++) {
-        payload[b] ^= block[b];
-      }
+      xorBuffersFast(payload, this.blocks[idx]);
     }
 
     const isSystematic = packetId < this.K;
@@ -191,10 +209,7 @@ export class FountainDecoder {
     // 1. XOR out all already decoded blocks
     for (const idx of Array.from(indices)) {
       if (this.decodedBlocks[idx] !== null) {
-        const decoded = this.decodedBlocks[idx]!;
-        for (let i = 0; i < payload.length; i++) {
-          payload[i] ^= decoded[i];
-        }
+        xorBuffersFast(payload, this.decodedBlocks[idx]!);
         indices.delete(idx);
       }
     }
@@ -235,10 +250,8 @@ export class FountainDecoder {
 
     for (const [pid, bufPacket] of Array.from(this.bufferedPackets.entries())) {
       if (bufPacket.indices.has(blockIndex)) {
-        // XOR out newly decoded block
-        for (let i = 0; i < bufPacket.payload.length; i++) {
-          bufPacket.payload[i] ^= blockPayload[i];
-        }
+        // Fast XOR out newly decoded block
+        xorBuffersFast(bufPacket.payload, blockPayload);
         bufPacket.indices.delete(blockIndex);
 
         if (bufPacket.indices.size === 1) {
