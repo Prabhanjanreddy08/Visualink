@@ -58,20 +58,22 @@ export function selectBlockIndices(rng: () => number, K: number, degree: number)
 export function getPacketBlockMapping(packetId: number, K: number): { degree: number; indices: number[] } {
   if (K === 1) return { degree: 1, indices: [0] };
 
-  // Pass 1: Pure Systematic Pass for initial K packets (0..K-1)
+  // Pass 1: Sequential Systematic Pass for initial K packets (0..K-1)
   if (packetId < K) {
     return { degree: 1, indices: [packetId] };
   }
 
-  // Pass 2+: 1:1 Interleaved Systematic Round-Robin & K(o) Soliton Fountain Pairs
-  // Even packetId offsets: Systematic Block retry
-  // Odd packetId offsets: K(o) Low-Degree Soliton Fountain Pair/Triplet (d <= 3)
+  // Pass 2+: Prime-Stride Systematic Interleaving & K(o) Soliton Fountain Pairs
+  // 2 out of 3 frames: Prime-Stride Systematic Retries (P=37 sweeps whole file spectrum in 0.5s)
+  // 1 out of 3 frames: K(o) Soliton Fountain Pair/Triplet (d <= 3)
   const offset = packetId - K;
-  if (offset % 2 === 0) {
-    const sysIndex = Math.floor(offset / 2) % K;
+  if (offset % 3 !== 2) {
+    const seq = Math.floor((offset * 2) / 3);
+    const sysIndex = (seq * 37) % K;
     return { degree: 1, indices: [sysIndex] };
   }
 
+  // Fountain Pair frame
   const rng = mulberry32(packetId);
   const degree = sampleSolitonDegree(rng, K);
   const indices = selectBlockIndices(rng, K, degree);
