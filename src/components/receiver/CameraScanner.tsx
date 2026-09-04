@@ -81,7 +81,7 @@ export function CameraScanner({ videoRef, guidanceText, isScanning, onCameraRead
         </div>
 
         <div className="text-[10px] text-cyan-400/80 bg-black/90 px-2 py-0.5 rounded border border-cyan-500/30">
-          ALIGN QR MATRIX INSIDE RETICLE
+          AIR-GAPPED OPTICAL SCANNER ACTIVE
         </div>
       </div>
 

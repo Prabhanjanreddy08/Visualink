@@ -69,8 +69,8 @@ export class QRFrameDecoder {
       }
     }
 
-    // 2. Fallback to jsQR Canvas decoding (Downscaled to max 640px width for 9x faster JS decoding)
-    const maxTargetWidth = 640;
+    // 2. Fallback to jsQR Canvas decoding (Downscaled to max 480px width for 60 FPS JS decoding on mobile)
+    const maxTargetWidth = 480;
     let targetWidth = width;
     let targetHeight = height;
 
@@ -119,23 +119,14 @@ export class QRFrameDecoder {
   }
 
   /**
-   * Computes user guidance based on QR bounding box size relative to video frame.
+   * Returns clean stream status without fussy position/distance pinpointing warnings.
    */
   private computeGuidance(
     bbox: { x: number; y: number; width: number; height: number } | null,
     frameWidth: number,
     frameHeight: number
   ): string {
-    if (!bbox) return "Point camera at sender screen";
-
-    const qrAreaRatio = (bbox.width * bbox.height) / (frameWidth * frameHeight);
-
-    if (qrAreaRatio < 0.08) {
-      return "Move closer";
-    }
-    if (qrAreaRatio > 0.80) {
-      return "Move farther away";
-    }
-    return "QR detected — Hold steady";
+    if (!bbox) return "SCANNING OPTICAL STREAM...";
+    return "[✓] OPTICAL STREAM CONNECTED — RECEIVING BLOCKS";
   }
 }
