@@ -182,6 +182,7 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
             videoRef={videoRef}
             guidanceText={guidanceText}
             isScanning={!result}
+            isLocked={Boolean(metadata || (sessionIdHex && sessionIdHex !== '—'))}
           />
 
           {metadata && (

@@ -64,6 +64,8 @@ export class ReceiverSession {
         const scanResult = await this.decoder.decodeFrame(video);
         const now = Date.now();
 
+        const isSessionLocked = this.lockedSessionId !== null || this.metadata !== null;
+
         if (scanResult) {
           const packet = stringToVLPacket(scanResult.rawValue);
           if (packet) {
@@ -77,7 +79,10 @@ export class ReceiverSession {
             lastProgressTime = now;
             const current = this.fountainDecoder ? this.fountainDecoder.getDecodedCount() : 0;
             const total = this.metadata ? this.metadata.totalBlocks : 0;
-            onProgress(this.metrics.getSnapshot(current, total), scanResult.guidanceText);
+            const guidance = isSessionLocked
+              ? `[✓] OPTICAL LINK CONNECTED — RECEIVING BLOCKS (${current}/${total})`
+              : scanResult.guidanceText;
+            onProgress(this.metrics.getSnapshot(current, total), guidance);
           }
         } else {
           this.metrics.recordFrameScanned(false);
@@ -85,7 +90,10 @@ export class ReceiverSession {
             lastProgressTime = now;
             const current = this.fountainDecoder ? this.fountainDecoder.getDecodedCount() : 0;
             const total = this.metadata ? this.metadata.totalBlocks : 0;
-            onProgress(this.metrics.getSnapshot(current, total), "Point camera at sender screen");
+            const guidance = isSessionLocked
+              ? `[✓] OPTICAL LINK CONNECTED — RECEIVING BLOCKS (${current}/${total})`
+              : "Point camera at sender screen";
+            onProgress(this.metrics.getSnapshot(current, total), guidance);
           }
         }
 

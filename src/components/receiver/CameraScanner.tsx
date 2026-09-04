@@ -8,10 +8,11 @@ export interface CameraScannerProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   guidanceText: string;
   isScanning: boolean;
+  isLocked?: boolean;
   onCameraReady?: () => void;
 }
 
-export function CameraScanner({ videoRef, guidanceText, isScanning, onCameraReady }: CameraScannerProps) {
+export function CameraScanner({ videoRef, guidanceText, isScanning, isLocked, onCameraReady }: CameraScannerProps) {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -49,7 +50,7 @@ export function CameraScanner({ videoRef, guidanceText, isScanning, onCameraRead
   }, [videoRef, onCameraReady]);
 
   return (
-    <div className="relative w-full max-w-md mx-auto aspect-square rounded-lg overflow-hidden bg-black border-2 border-cyan-500/50 shadow-2xl font-mono">
+    <div className={`relative w-full max-w-md mx-auto aspect-square rounded-lg overflow-hidden bg-black border-2 transition-colors duration-300 ${isLocked ? 'border-emerald-500/80 shadow-emerald-500/20' : 'border-cyan-500/50'} shadow-2xl font-mono`}>
       {/* Video Element */}
       <video
         ref={videoRef}
@@ -60,28 +61,42 @@ export function CameraScanner({ videoRef, guidanceText, isScanning, onCameraRead
 
       {/* Reticle Overlay */}
       <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-between p-4 z-10">
-        {/* Top Status */}
-        <div className="bg-black/90 border border-cyan-500/50 px-3 py-1 rounded text-xs text-cyan-300 flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-          <span>[!] {guidanceText}</span>
+        {/* Top Status Badge */}
+        <div className={`px-3 py-1 rounded text-xs flex items-center gap-2 transition-colors duration-300 border ${
+          isLocked
+            ? 'bg-emerald-950/95 border-emerald-500/80 text-emerald-300 shadow-lg shadow-emerald-500/20'
+            : 'bg-black/90 border-cyan-500/50 text-cyan-300'
+        }`}>
+          <span className={`w-2 h-2 rounded-full ${isLocked ? 'bg-emerald-400 animate-pulse' : 'bg-cyan-400 animate-ping'}`} />
+          <span className="font-bold">{guidanceText}</span>
         </div>
 
         {/* Reticle Box */}
-        <div className="relative w-60 h-60 border-2 border-cyan-400/80 rounded overflow-hidden">
+        <div className={`relative w-60 h-60 border-2 rounded overflow-hidden transition-colors duration-300 ${
+          isLocked ? 'border-emerald-400/90 shadow-inner' : 'border-cyan-400/80'
+        }`}>
           {/* Animated Scanning Line */}
           {isScanning && (
-            <div className="w-full h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-lg shadow-cyan-400 animate-scan-line" />
+            <div className={`w-full h-1 bg-gradient-to-r shadow-lg animate-scan-line ${
+              isLocked
+                ? 'from-transparent via-emerald-400 to-transparent shadow-emerald-400'
+                : 'from-transparent via-cyan-400 to-transparent shadow-cyan-400'
+            }`} />
           )}
 
           {/* Corner accents */}
-          <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-cyan-400" />
-          <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-cyan-400" />
-          <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-cyan-400" />
-          <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-cyan-400" />
+          <div className={`absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 ${isLocked ? 'border-emerald-400' : 'border-cyan-400'}`} />
+          <div className={`absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 ${isLocked ? 'border-emerald-400' : 'border-cyan-400'}`} />
+          <div className={`absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 ${isLocked ? 'border-emerald-400' : 'border-cyan-400'}`} />
+          <div className={`absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 ${isLocked ? 'border-emerald-400' : 'border-cyan-400'}`} />
         </div>
 
-        <div className="text-[10px] text-cyan-400/80 bg-black/90 px-2 py-0.5 rounded border border-cyan-500/30">
-          ALIGN QR MATRIX INSIDE RETICLE
+        <div className={`text-[10px] px-2.5 py-1 rounded border font-bold transition-colors ${
+          isLocked
+            ? 'text-emerald-300 bg-emerald-950/90 border-emerald-500/50'
+            : 'text-cyan-400/80 bg-black/90 border-cyan-500/30'
+        }`}>
+          {isLocked ? '[✓] OPTICAL SCAN LOCKED — KEEP CAMERA STEADY' : 'ALIGN QR MATRIX INSIDE RETICLE'}
         </div>
       </div>
 

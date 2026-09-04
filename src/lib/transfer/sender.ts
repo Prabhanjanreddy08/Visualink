@@ -137,8 +137,8 @@ export class SenderSession {
 
     let packet: VLPacket;
 
-    // Send metadata on initial 3 frames (0, 1, 2) and every 20 frames thereafter for instant lock
-    if (this.renderFrameCount < 3 || (this.renderFrameCount % 20 === 0)) {
+    // Send metadata on initial 5 frames (0..4) and every 6 frames thereafter for instant < 100ms lock
+    if (this.renderFrameCount < 5 || (this.renderFrameCount % 6 === 0)) {
       const metaPayload = encodeMetadataPayload(this.metadata);
       packet = {
         header: {
