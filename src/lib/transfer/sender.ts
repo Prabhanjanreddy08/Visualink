@@ -133,8 +133,8 @@ export class SenderSession {
 
     let packet: VLPacket;
 
-    // Transmit metadata control packet every 20 frames to ensure receiver lock
-    if (this.currentPacketId % 20 === 0) {
+    // Transmit metadata control packet during initial 5 frames, then once every 100 frames
+    if (this.currentPacketId < 5 || this.currentPacketId % 100 === 0) {
       const metaPayload = encodeMetadataPayload(this.metadata);
       packet = {
         header: {
@@ -156,7 +156,7 @@ export class SenderSession {
     }
 
     const qrText = packetToQRString(packet);
-    await renderQRToCanvas(canvas, qrText, { margin: 2, ecLevel: "M" });
+    await renderQRToCanvas(canvas, qrText, { width: 320, margin: 2, ecLevel: "M" });
 
     this.metrics.recordFrameRendered();
     this.currentPacketId++;

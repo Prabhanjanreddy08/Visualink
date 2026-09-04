@@ -2,7 +2,7 @@
 'use client';
 
 import React from 'react';
-import { Sun, Terminal } from 'lucide-react';
+import { Sun } from 'lucide-react';
 
 export interface QRDisplayProps {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
@@ -18,19 +18,21 @@ export const QRDisplay = React.memo(function QRDisplay({ canvasRef, sessionIdHex
         <span>[!] SET SCREEN BRIGHTNESS TO MAXIMUM (100%)</span>
       </div>
 
-      {/* Terminal Style Frame around Canvas */}
-      <div className="term-box p-3 rounded-lg border-2 border-emerald-500/50 bg-black text-center shadow-2xl shadow-emerald-500/10">
+      {/* Terminal Style Frame around Canvas with Fixed Outer Dimensions */}
+      <div className="term-box p-3 rounded-lg border-2 border-emerald-500/50 bg-black text-center shadow-2xl shadow-emerald-500/10 w-[344px] flex-shrink-0">
         <div className="text-[10px] text-emerald-400/80 mb-2 border-b border-emerald-500/20 pb-1 flex justify-between items-center">
           <span>┌─ [OPTICAL TRANSMITTER MATRIX]</span>
           <span>SESSION: {sessionIdHex} ─┐</span>
         </div>
 
-        <canvas
-          ref={canvasRef}
-          width={320}
-          height={320}
-          className="w-72 h-72 sm:w-80 sm:h-80 mx-auto rounded image-rendering-pixelated border border-emerald-500/30"
-        />
+        <div className="w-[320px] h-[320px] mx-auto overflow-hidden bg-black flex items-center justify-center">
+          <canvas
+            ref={canvasRef}
+            width={320}
+            height={320}
+            className="w-[320px] h-[320px] rounded image-rendering-pixelated border border-emerald-500/30"
+          />
+        </div>
 
         <div className="text-[10px] text-emerald-400 mt-2 border-t border-emerald-500/20 pt-1 flex items-center justify-between">
           <span>└─ STATUS: STREAMING </span>

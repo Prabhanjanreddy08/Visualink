@@ -14,7 +14,7 @@ export interface QROptions {
 }
 
 /**
- * Renders QR code string directly onto an HTMLCanvasElement.
+ * Renders QR code string directly onto an HTMLCanvasElement with fixed dimensions to prevent layout blinking.
  */
 export async function renderQRToCanvas(
   canvas: HTMLCanvasElement,
@@ -23,10 +23,12 @@ export async function renderQRToCanvas(
 ): Promise<void> {
   const ecLevel = options?.ecLevel || "M";
   const margin = options?.margin ?? 2;
+  const targetWidth = options?.width ?? 320;
   const darkColor = options?.darkColor || "#000000";
   const lightColor = options?.lightColor || "#FFFFFF";
 
   await QRCode.toCanvas(canvas, text, {
+    width: targetWidth,
     errorCorrectionLevel: ecLevel,
     margin,
     color: {
@@ -44,6 +46,7 @@ export async function renderQRToDataURL(
   options?: QROptions
 ): Promise<string> {
   return QRCode.toDataURL(text, {
+    width: options?.width ?? 320,
     errorCorrectionLevel: options?.ecLevel || "M",
     margin: options?.margin ?? 2,
   });
