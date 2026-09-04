@@ -302,30 +302,67 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
             <div className="text-xs font-mono text-emerald-400 tracking-widest uppercase mb-1">
               ✓ UPI-STYLE OPTICAL SCAN SUCCESSFUL
             </div>
-            <h2 className="text-2xl font-bold text-emerald-300">[ ✓ ] FILE RECEIVED & VERIFIED!</h2>
+            <h2 className="text-2xl font-bold text-emerald-300">
+              {result.decryptionError ? '[ 🔒 ENCRYPTED FILE RECEIVED ]' : '[ ✓ ] FILE RECEIVED & VERIFIED!'}
+            </h2>
             <p className="text-xs text-slate-300 mt-1">
               {result.fileName} ({formatBytes(result.fileSize)}) IN {formatSeconds(result.elapsedSeconds)} ({result.goodputKBps} KB/S)
             </p>
           </div>
 
-          <div className="bg-black/90 p-3 rounded border border-emerald-500/40 text-xs text-left space-y-1 font-mono">
-            <div className="flex justify-between">
-              <span className="text-slate-400">FILE INTEGRITY VERIFICATION:</span>
-              {result.sha256Match ? (
-                <span className="text-emerald-400 font-bold">✓ SHA-256 MATCH</span>
-              ) : (
-                <span className="text-rose-400 font-bold">❌ HASH MISMATCH</span>
-              )}
+          {result.decryptionError ? (
+            <div className="bg-amber-950/60 p-4 rounded border-2 border-amber-500/80 space-y-3 font-mono text-left">
+              <div className="text-amber-300 font-bold text-xs flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-amber-400" />
+                <span>🔒 PAIR CODE REQUIRED TO DECRYPT & SAVE FILE:</span>
+              </div>
+              <div className="flex gap-3 items-center justify-between">
+                <span className="text-xs text-slate-300">Enter 6-digit code shown on Sender:</span>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={enteredPairCode}
+                  onChange={async (e) => {
+                    const code = e.target.value;
+                    setEnteredPairCode(code);
+                    if (receiverRef.current) {
+                      receiverRef.current.setPairCode(code);
+                      const newRes = await receiverRef.current.checkAndFinalize();
+                      if (newRes && !newRes.decryptionError) {
+                        setResult(newRes);
+                        playSuccessBeep();
+                        if (newRes.sha256Match && !hasAutoDownloadedRef.current) {
+                          hasAutoDownloadedRef.current = true;
+                          triggerFileDownload(newRes);
+                        }
+                      }
+                    }
+                  }}
+                  placeholder="e.g. 849201"
+                  className="px-3 py-1.5 bg-black border-2 border-amber-500 text-amber-300 text-center font-bold tracking-widest rounded w-32 text-sm focus:outline-none"
+                />
+              </div>
             </div>
-            <div className="text-[11px] text-slate-500 break-all bg-slate-950 p-2 rounded">
-              {result.calculatedHash}
+          ) : (
+            <div className="bg-black/90 p-3 rounded border border-emerald-500/40 text-xs text-left space-y-1 font-mono">
+              <div className="flex justify-between">
+                <span className="text-slate-400">FILE INTEGRITY VERIFICATION:</span>
+                {result.sha256Match ? (
+                  <span className="text-emerald-400 font-bold">✓ SHA-256 MATCH</span>
+                ) : (
+                  <span className="text-rose-400 font-bold">❌ HASH MISMATCH</span>
+                )}
+              </div>
+              <div className="text-[11px] text-slate-500 break-all bg-slate-950 p-2 rounded">
+                {result.calculatedHash}
+              </div>
             </div>
-          </div>
+          )}
 
           <button
             onClick={handleDownload}
-            disabled={!result.sha256Match}
-            className="w-full py-3 bg-emerald-950 hover:bg-emerald-900 border-2 border-emerald-500 text-emerald-300 font-bold text-sm rounded flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            disabled={!result.sha256Match || Boolean(result.decryptionError)}
+            className="w-full py-3 bg-emerald-950 hover:bg-emerald-900 border-2 border-emerald-500 disabled:opacity-50 text-emerald-300 font-bold text-sm rounded flex items-center justify-center gap-2 transition-colors cursor-pointer"
           >
             <Download className="w-4 h-4" />
             [ v SAVE RECONSTRUCTED FILE ]

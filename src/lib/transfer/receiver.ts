@@ -21,6 +21,7 @@ export interface ReceiverResult {
   expectedHash: string;
   elapsedSeconds: number;
   goodputKBps: number;
+  decryptionError?: boolean;
 }
 
 export class ReceiverSession {
@@ -209,23 +210,42 @@ export class ReceiverSession {
     }
 
     let fileBuffer = this.fountainDecoder.getReconstructedFileBuffer(this.metadata.fileSize);
+    let decryptionError = false;
 
     // Decrypt if encrypted
     if (this.metadata.encrypted) {
-      if (!this.cryptoKey && this.pairCode) {
-        this.cryptoKey = await deriveKeyFromPairCode(this.pairCode);
-      }
-      if (!this.cryptoKey) {
-        throw new Error("Encrypted file requires valid pairing key");
-      }
-      if (!this.metadata.iv) {
-        throw new Error("Missing IV for decryption");
-      }
+      try {
+        if (this.pairCode && this.pairCode.trim().length > 0) {
+          this.cryptoKey = await deriveKeyFromPairCode(this.pairCode);
+        }
+        if (!this.cryptoKey || !this.metadata.iv) {
+          throw new Error("Missing pair code key or IV for decryption");
+        }
 
-      const iv = new Uint8Array(
-        this.metadata.iv.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || []
-      );
-      fileBuffer = await decryptBuffer(fileBuffer, this.cryptoKey, iv);
+        const iv = new Uint8Array(
+          this.metadata.iv.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || []
+        );
+        fileBuffer = await decryptBuffer(fileBuffer, this.cryptoKey, iv);
+      } catch {
+        decryptionError = true;
+      }
+    }
+
+    const snapshot = this.metrics.getSnapshot(this.metadata.totalBlocks, this.metadata.totalBlocks);
+
+    if (decryptionError) {
+      return {
+        fileBlob: new Blob([], { type: this.metadata.mimeType }),
+        fileName: this.metadata.fileName,
+        fileSize: this.metadata.fileSize,
+        mimeType: this.metadata.mimeType,
+        sha256Match: false,
+        calculatedHash: "DECRYPTION_KEY_REQUIRED",
+        expectedHash: this.metadata.sha256,
+        elapsedSeconds: snapshot.elapsedSeconds,
+        goodputKBps: snapshot.goodputKBps,
+        decryptionError: true,
+      };
     }
 
     // Calculate SHA-256 hash
@@ -233,8 +253,6 @@ export class ReceiverSession {
     const sha256Match = calculatedHash.toLowerCase() === this.metadata.sha256.toLowerCase();
 
     const fileBlob = new Blob([fileBuffer.buffer as unknown as ArrayBuffer], { type: this.metadata.mimeType });
-
-    const snapshot = this.metrics.getSnapshot(this.metadata.totalBlocks, this.metadata.totalBlocks);
 
     return {
       fileBlob,
@@ -246,6 +264,7 @@ export class ReceiverSession {
       expectedHash: this.metadata.sha256,
       elapsedSeconds: snapshot.elapsedSeconds,
       goodputKBps: snapshot.goodputKBps,
+      decryptionError: false,
     };
   }
 
