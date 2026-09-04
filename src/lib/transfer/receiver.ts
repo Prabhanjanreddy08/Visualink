@@ -32,6 +32,8 @@ export class ReceiverSession {
   private isScanning: boolean = false;
   private pairCode?: string;
   private cryptoKey: CryptoKey | null = null;
+  private animFrameId: number | null = null;
+  private lockedSessionId: number | null = null;
   private earlyPacketBuffer: VLPacket[] = [];
   private onCompleteCallback?: (result: ReceiverResult) => void;
 
