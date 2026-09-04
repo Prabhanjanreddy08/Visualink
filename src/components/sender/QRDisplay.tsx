@@ -7,9 +7,10 @@ import { Sun } from 'lucide-react';
 export interface QRDisplayProps {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   sessionIdHex: string;
+  packetId?: number;
 }
 
-export const QRDisplay = React.memo(function QRDisplay({ canvasRef, sessionIdHex }: QRDisplayProps) {
+export const QRDisplay = React.memo(function QRDisplay({ canvasRef, sessionIdHex, packetId }: QRDisplayProps) {
   return (
     <div className="flex flex-col items-center justify-center space-y-3 font-mono">
       {/* Screen Brightness Prompt */}
@@ -21,8 +22,8 @@ export const QRDisplay = React.memo(function QRDisplay({ canvasRef, sessionIdHex
       {/* Terminal Style Frame around Canvas with Fixed Outer Dimensions */}
       <div className="term-box p-3 rounded-lg border-2 border-emerald-500/50 bg-black text-center shadow-2xl shadow-emerald-500/10 w-[344px] flex-shrink-0">
         <div className="text-[10px] text-emerald-400/80 mb-2 border-b border-emerald-500/20 pb-1 flex justify-between items-center">
-          <span>┌─ [OPTICAL TRANSMITTER MATRIX]</span>
-          <span>SESSION: {sessionIdHex} ─┐</span>
+          <span>┌─ [OPTICAL MATRIX] FRAME #{packetId ?? 0}</span>
+          <span>SESH: {sessionIdHex} ─┐</span>
         </div>
 
         <div className="w-[320px] h-[320px] mx-auto overflow-hidden bg-black flex items-center justify-center">
@@ -35,7 +36,7 @@ export const QRDisplay = React.memo(function QRDisplay({ canvasRef, sessionIdHex
         </div>
 
         <div className="text-[10px] text-emerald-400 mt-2 border-t border-emerald-500/20 pt-1 flex items-center justify-between">
-          <span>└─ STATUS: STREAMING </span>
+          <span>└─ UNIQUE PACKET MATRIX </span>
           <span className="text-emerald-300 animate-pulse">● OPTICAL_LINK_ACTIVE</span>
         </div>
       </div>

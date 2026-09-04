@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Upload, Lock, ShieldCheck, FileText, Play, Terminal, HardDrive } from 'lucide-react';
+import { Upload, Lock, ShieldCheck, FileText, Play, Terminal, HardDrive, RefreshCw } from 'lucide-react';
 
 export interface FileSelectorProps {
   onFileSelected: (file: File, pairCode?: string) => void;
@@ -11,8 +11,16 @@ export interface FileSelectorProps {
 export function FileSelector({ onFileSelected }: FileSelectorProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [enableEncryption, setEnableEncryption] = useState<boolean>(false);
-  const [pairCode, setPairCode] = useState<string>('8492');
+  const [pairCode, setPairCode] = useState<string>(() => generateRandomPairCode());
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function generateRandomPairCode(): string {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  }
+
+  const handleRegeneratePairCode = () => {
+    setPairCode(generateRandomPairCode());
+  };
 
   const formatBytes = (bytes: number): string => {
     if (bytes === 0) return '0 Bytes';
@@ -35,6 +43,7 @@ export function FileSelector({ onFileSelected }: FileSelectorProps) {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       setSelectedFile(e.target.files[0]);
+      setPairCode(generateRandomPairCode()); // New pair code on every file upload!
     }
   };
 
@@ -49,6 +58,7 @@ export function FileSelector({ onFileSelected }: FileSelectorProps) {
     });
     Object.defineProperty(mockFile, 'size', { value: bytes });
     setSelectedFile(mockFile);
+    setPairCode(generateRandomPairCode()); // New pair code on sample preset select!
   };
 
   const handleStart = () => {
@@ -145,14 +155,21 @@ export function FileSelector({ onFileSelected }: FileSelectorProps) {
             </div>
             {enableEncryption && (
               <div className="flex items-center gap-3 pt-1 text-xs">
-                <span className="text-amber-400">PAIR CODE:</span>
+                <span className="text-amber-400 font-bold">NEW PAIR CODE:</span>
                 <input
                   type="text"
                   maxLength={6}
                   value={pairCode}
                   onChange={(e) => setPairCode(e.target.value)}
-                  className="px-2 py-0.5 bg-black border border-amber-500/50 text-amber-300 text-center font-bold tracking-widest rounded"
+                  className="px-2 py-0.5 bg-black border border-amber-500/50 text-amber-300 text-center font-bold tracking-widest rounded w-24"
                 />
+                <button
+                  type="button"
+                  onClick={handleRegeneratePairCode}
+                  className="px-2 py-0.5 bg-amber-950/80 hover:bg-amber-900 border border-amber-500/40 text-amber-300 text-[10px] rounded flex items-center gap-1 transition-colors"
+                >
+                  <RefreshCw className="w-3 h-3" /> REGEN
+                </button>
               </div>
             )}
           </div>

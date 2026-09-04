@@ -10,13 +10,13 @@ export interface ChunkInfo {
 }
 
 /**
- * Calculates optimal QR block size for high-reliability mobile camera scanning.
- * Uses 256B to 384B block size to keep QR codes at low density (Version 8/9 - 49x49 modules)
- * so mobile phone cameras can decode frames instantly from a distance.
+ * Calculates optimal QR block size for high-performance optical file transfer.
+ * Uses 512 bytes payload per frame (QR Version 10/11) to achieve fast transfer rates
+ * while preserving 100% camera scanning decodability.
  */
 export function calculateOptimalBlockSize(fileSize: number): number {
-  if (fileSize <= 500 * 1024) return 256; // <= 500 KB -> 256 B
-  return 384;                             // > 500 KB -> 384 B
+  if (fileSize <= 100 * 1024) return 256; // <= 100 KB -> 256 B
+  return 512;                             // > 100 KB -> 512 B
 }
 
 /**

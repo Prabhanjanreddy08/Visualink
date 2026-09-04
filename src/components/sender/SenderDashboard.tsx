@@ -143,14 +143,14 @@ export function SenderDashboard({ file, pairCode, onCancel }: SenderDashboardPro
         </div>
       </div>
 
-      {/* QR Display Canvas */}
-      <QRDisplay canvasRef={canvasRef} sessionIdHex={sessionIdHex} />
+      {/* QR Display Canvas with Frame Packet ID */}
+      <QRDisplay canvasRef={canvasRef} sessionIdHex={sessionIdHex} packetId={metrics?.totalFrames} />
 
       {/* Terminal Log Console */}
       <div className="term-box p-4 rounded-lg space-y-2">
         <div className="text-xs flex justify-between items-center text-emerald-400 font-bold border-b border-emerald-500/20 pb-1">
           <span>FILE: {file.name} ({formatBytes(file.size)})</span>
-          <span className="text-slate-400 text-[11px]">BLOCKS: {metrics?.totalBlocks ?? 0} | SIZE: {metrics?.totalBlocks ? Math.round(file.size / metrics.totalBlocks) : 384}B</span>
+          <span className="text-slate-400 text-[11px]">BLOCKS: {metrics?.totalBlocks ?? 0} | SIZE: {metrics?.totalBlocks ? Math.round(file.size / metrics.totalBlocks) : 512}B</span>
         </div>
 
         {/* Live Terminal Console Log Feed */}

@@ -6,7 +6,7 @@ import { ReceiverSession, ReceiverResult } from '../../lib/transfer/receiver';
 import { TransferMetrics } from '../../lib/performance/metrics';
 import { FileMetadata } from '../../lib/protocol/metadata';
 import { CameraScanner } from './CameraScanner';
-import { Download, CheckCircle2, AlertTriangle, ShieldCheck, Terminal, XCircle } from 'lucide-react';
+import { Download, CheckCircle2, AlertTriangle, ShieldCheck, Terminal, XCircle, Zap } from 'lucide-react';
 
 export interface ReceiverDashboardProps {
   pairCode?: string;
@@ -23,6 +23,7 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
   const [sessionIdHex, setSessionIdHex] = useState('—');
   const [enteredPairCode, setEnteredPairCode] = useState(pairCode || '8492');
   const [logLines, setLogLines] = useState<string[]>([]);
+  const hasAutoDownloadedRef = useRef<boolean>(false);
 
   useEffect(() => {
     const session = new ReceiverSession(enteredPairCode);
@@ -45,6 +46,14 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
         (res) => {
           setResult(res);
           addLog(`RECONSTRUCTION COMPLETE: SHA256_MATCH=${res.sha256Match}`);
+
+          // UPI-Style Auto Download Trigger
+          if (res.sha256Match && !hasAutoDownloadedRef.current) {
+            hasAutoDownloadedRef.current = true;
+            setTimeout(() => {
+              triggerFileDownload(res);
+            }, 300);
+          }
         },
         (err) => {
           console.error(err);
@@ -62,16 +71,19 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
     setLogLines(prev => [`[${time}] ${msg}`, ...prev.slice(0, 4)]);
   };
 
-  const handleDownload = () => {
-    if (!result) return;
-    const url = URL.createObjectURL(result.fileBlob);
+  const triggerFileDownload = (res: ReceiverResult) => {
+    const url = URL.createObjectURL(res.fileBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = result.fileName;
+    a.download = res.fileName;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const handleDownload = () => {
+    if (result) triggerFileDownload(result);
   };
 
   const formatSeconds = (sec: number): string => {
@@ -103,7 +115,7 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
             <span className="w-3 h-3 rounded-full bg-emerald-500/80 inline-block" />
             <span className="ml-2 font-bold">visualink-cli@receiver:~$ ./scan_optical</span>
           </div>
-          <span>VLQR/1</span>
+          <span className="text-cyan-500/60">UPI-STYLE INSTANT SCANNER</span>
         </div>
 
         <div className="p-4 space-y-3 text-cyan-300">
@@ -172,7 +184,10 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
           {metadata && (
             <div className="term-box-cyan p-4 rounded-lg space-y-3">
               <div className="text-xs text-cyan-400 flex justify-between items-center border-b border-cyan-500/20 pb-2">
-                <span>[!] OPTICAL_LOCK_ESTABLISHED</span>
+                <span className="flex items-center gap-1.5 font-bold text-cyan-300">
+                  <Zap className="w-4 h-4 text-cyan-400 animate-pulse" />
+                  [!] OPTICAL_LOCK_ESTABLISHED
+                </span>
                 <span className="text-cyan-200 font-bold">{formatBytes(metadata.fileSize)}</span>
               </div>
 
@@ -193,20 +208,23 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
           )}
         </div>
       ) : (
-        /* Transfer Complete View */
-        <div className="term-box-cyan p-6 rounded-lg text-center space-y-4">
-          <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center mx-auto text-emerald-400">
-            <CheckCircle2 className="w-8 h-8" />
+        /* Transfer Complete View (UPI Style Auto-Complete) */
+        <div className="term-box-cyan p-6 rounded-lg text-center space-y-4 bg-[#010a06] border-2 border-emerald-500/60 shadow-2xl shadow-emerald-500/20">
+          <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center mx-auto text-emerald-400 animate-bounce">
+            <CheckCircle2 className="w-10 h-10" />
           </div>
 
           <div>
-            <h2 className="text-xl font-bold text-emerald-300">[ ✓ ] OPTICAL TRANSFER COMPLETE!</h2>
-            <p className="text-xs text-slate-400 mt-1">
-              RECONSTRUCTED {formatBytes(result.fileSize)} IN {formatSeconds(result.elapsedSeconds)} ({result.goodputKBps} KB/S)
+            <div className="text-xs font-mono text-emerald-400 tracking-widest uppercase mb-1">
+              ✓ UPI-STYLE OPTICAL SCAN SUCCESSFUL
+            </div>
+            <h2 className="text-2xl font-bold text-emerald-300">[ ✓ ] FILE RECEIVED & VERIFIED!</h2>
+            <p className="text-xs text-slate-300 mt-1">
+              {result.fileName} ({formatBytes(result.fileSize)}) IN {formatSeconds(result.elapsedSeconds)} ({result.goodputKBps} KB/S)
             </p>
           </div>
 
-          <div className="bg-black/90 p-3 rounded border border-emerald-500/30 text-xs text-left space-y-1 font-mono">
+          <div className="bg-black/90 p-3 rounded border border-emerald-500/40 text-xs text-left space-y-1 font-mono">
             <div className="flex justify-between">
               <span className="text-slate-400">FILE INTEGRITY VERIFICATION:</span>
               {result.sha256Match ? (
