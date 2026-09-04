@@ -28,17 +28,19 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
   const [scanCountdown, setScanCountdown] = useState<number>(5);
   const hasAutoDownloadedRef = useRef<boolean>(false);
 
-  // 5-Second Camera Scanner Timer: turns off camera and redirects to receiving section after 5s
+  // Camera Auto-Off & Download Completion Monitor
   useEffect(() => {
     if (!isCameraActive || result) return;
 
     const timer = setInterval(async () => {
-      // Continuously check if session has received enough packets to reconstruct file
+      // Continuously check if session has received enough packets to finish downloading file
       if (receiverRef.current) {
         const completedResult = await receiverRef.current.checkAndFinalize();
         if (completedResult) {
+          setIsCameraActive(false);
           setResult(completedResult);
           playSuccessBeep();
+          addLog(`FILE DOWNLOAD COMPLETE: SHA256_MATCH=${completedResult.sha256Match}`);
           if (completedResult.sha256Match && !hasAutoDownloadedRef.current) {
             hasAutoDownloadedRef.current = true;
             triggerFileDownload(completedResult);
@@ -47,39 +49,28 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
         }
       }
 
-      setScanCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          setIsCameraActive(false);
-          addLog('CAMERA TURNED OFF AFTER 5S SCAN WINDOW — REDIRECTED TO RECEIVING SECTION');
-
-          // Check final reconstruction status when camera turns off
-          if (receiverRef.current) {
-            receiverRef.current.checkAndFinalize().then((finalRes) => {
-              if (finalRes) {
-                setResult(finalRes);
-                playSuccessBeep();
-                if (finalRes.sha256Match && !hasAutoDownloadedRef.current) {
-                  hasAutoDownloadedRef.current = true;
-                  triggerFileDownload(finalRes);
-                }
-              }
-            });
+      // If no session locked yet, countdown 10 seconds before turning off inactive camera
+      if (!metadata) {
+        setScanCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            setIsCameraActive(false);
+            addLog('CAMERA TURNED OFF (INACTIVE 10S TIMEOUT) — RE-OPEN SCANNER WHEN SENDER IS READY');
+            return 0;
           }
-          return 0;
-        }
-        return prev - 1;
-      });
+          return prev - 1;
+        });
+      }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isCameraActive, result]);
+  }, [isCameraActive, metadata, result]);
 
   useEffect(() => {
     const session = new ReceiverSession(enteredPairCode);
     receiverRef.current = session;
 
-    addLog('INIT CAMERA SCANNER ENGINE... WAITING FOR OPTICAL LOCK');
+    addLog('INIT CAMERA SCANNER ENGINE... WAITING FOR OPTICAL SCAN');
 
     if (videoRef.current && isCameraActive) {
       session.startScanning(
@@ -87,7 +78,7 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
         (meta) => {
           setMetadata(meta);
           setSessionIdHex(session.getSessionIdHex());
-          addLog(`SESSION LOCKED: 0x${session.getSessionIdHex()} FILE=${meta.fileName} TOTAL_BLOCKS=${meta.totalBlocks}`);
+          addLog(`OPTICAL LOCK ESTABLISHED: 0x${session.getSessionIdHex()} FILE=${meta.fileName} TOTAL_BLOCKS=${meta.totalBlocks}`);
           playLockBeep();
         },
         (m, guidance) => {
@@ -95,8 +86,9 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
           setGuidanceText(guidance);
         },
         (res) => {
+          setIsCameraActive(false);
           setResult(res);
-          addLog(`RECONSTRUCTION COMPLETE: SHA256_MATCH=${res.sha256Match}`);
+          addLog(`FILE DOWNLOAD COMPLETE: SHA256_MATCH=${res.sha256Match}`);
           playSuccessBeep();
 
           // UPI-Style Auto Download Trigger
@@ -119,9 +111,9 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
   }, [enteredPairCode, isCameraActive]);
 
   const handleReopenCamera = () => {
-    setScanCountdown(5);
+    setScanCountdown(10);
     setIsCameraActive(true);
-    addLog('RE-OPENED CAMERA SCANNER WINDOW (5s TIMER ACTIVE)');
+    addLog('CAMERA SCANNER ACTIVE (POINT CAMERA AT SENDER QR CODE)');
   };
 
   const addLog = (msg: string) => {
@@ -234,44 +226,35 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
       {!result ? (
         <div className="space-y-4">
           {isCameraActive ? (
-            <CameraScanner
-              videoRef={videoRef}
-              guidanceText={guidanceText}
-              isScanning={!result}
-              isLocked={Boolean(metadata || (sessionIdHex && sessionIdHex !== '—'))}
-              countdownSeconds={scanCountdown}
-            />
-          ) : (
-            /* Receiving Section Card (Camera Turned OFF) */
-            <div className="term-box-cyan p-5 rounded-lg space-y-4 bg-[#020a06] border-2 border-emerald-500/50 shadow-2xl">
-              <div className="flex items-center justify-between border-b border-emerald-500/30 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />
-                  <span className="text-emerald-300 font-bold text-xs uppercase tracking-wider">
-                    [ ✓ ] CAMERA TURNED OFF — RECEIVING SECTION ACTIVE
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleReopenCamera}
-                  className="px-2.5 py-1 bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 text-cyan-300 text-[11px] rounded font-mono transition-colors cursor-pointer"
-                >
-                  📷 RE-OPEN CAMERA SCANNER (5S)
-                </button>
-              </div>
+            <div className="space-y-4">
+              <CameraScanner
+                videoRef={videoRef}
+                guidanceText={guidanceText}
+                isScanning={!result}
+                isLocked={Boolean(metadata || (sessionIdHex && sessionIdHex !== '—'))}
+                countdownSeconds={!metadata ? scanCountdown : undefined}
+              />
 
-              {metadata ? (
-                <div className="space-y-3 text-xs text-cyan-300">
-                  <div className="grid grid-cols-2 gap-2 bg-black/60 p-3 rounded border border-emerald-500/20">
+              {metadata && (
+                <div className="term-box-cyan p-4 rounded-lg space-y-3 bg-[#020a06] border-2 border-emerald-500/50 shadow-2xl">
+                  <div className="text-xs text-emerald-400 flex justify-between items-center border-b border-emerald-500/20 pb-2">
+                    <span className="flex items-center gap-1.5 font-bold text-emerald-300">
+                      <Zap className="w-4 h-4 text-emerald-400 animate-pulse" />
+                      [ ✓ ] OPTICAL LOCK ESTABLISHED — DOWNLOADING FILE...
+                    </span>
+                    <span className="text-emerald-200 font-bold">{formatBytes(metadata.fileSize)}</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs text-cyan-300 bg-black/60 p-2.5 rounded border border-emerald-500/20">
                     <div>FILE_NAME: <span className="font-bold text-slate-100">{metadata.fileName}</span></div>
-                    <div>FILE_SIZE: <span className="font-bold text-emerald-400">{formatBytes(metadata.fileSize)}</span></div>
                     <div>TOTAL_BLOCKS: <span className="font-bold text-cyan-400">{metadata.totalBlocks}</span></div>
                     <div>ENCRYPTION: <span className="text-amber-400 font-bold">{metadata.encrypted ? 'AES-256-GCM ACTIVE' : 'DISABLED'}</span></div>
+                    <div>STATUS: <span className="text-emerald-400 font-bold">RECEIVING PACKETS...</span></div>
                   </div>
 
                   {metadata.encrypted && (
                     <div className="bg-amber-950/40 p-2.5 rounded border border-amber-500/40 flex items-center justify-between">
-                      <span className="text-amber-300 font-bold flex items-center gap-1.5">
+                      <span className="text-amber-300 font-bold text-xs flex items-center gap-1.5">
                         🔒 ENTER PAIR CODE TO DECRYPT:
                       </span>
                       <input
@@ -285,6 +268,7 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
                             receiverRef.current.setPairCode(code);
                             const res = await receiverRef.current.checkAndFinalize();
                             if (res) {
+                              setIsCameraActive(false);
                               setResult(res);
                               playSuccessBeep();
                               if (res.sha256Match && !hasAutoDownloadedRef.current) {
@@ -300,27 +284,28 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
                   )}
 
                   <div className="space-y-1 pt-1">
-                    <div className="flex justify-between text-emerald-400 font-bold">
-                      <span>STREAM RECONSTRUCTION PROGRESS:</span>
+                    <div className="flex justify-between text-emerald-400 font-bold text-xs">
+                      <span>DOWNLOADING PROGRESS:</span>
                       <span>{asciiProgressBar}</span>
                     </div>
                   </div>
                 </div>
-              ) : (
-                <div className="text-center py-6 space-y-3 text-xs text-amber-300">
-                  <div className="font-bold">[!] CAMERA TIMER EXPIRED BEFORE OPTICAL LOCK</div>
-                  <p className="text-slate-400 text-[11px]">
-                    No QR metadata locked within 5 seconds. Re-open camera scanner when sender screen is ready.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleReopenCamera}
-                    className="px-4 py-2 bg-emerald-950 hover:bg-emerald-900 border border-emerald-500 text-emerald-300 font-bold rounded cursor-pointer transition-colors"
-                  >
-                    📷 RE-OPEN CAMERA SCANNER (5S)
-                  </button>
-                </div>
               )}
+            </div>
+          ) : (
+            /* Camera Off / Inactive State Card */
+            <div className="term-box-cyan p-5 rounded-lg space-y-4 bg-[#020a06] border-2 border-emerald-500/50 shadow-2xl text-center">
+              <div className="text-xs text-amber-300 font-bold uppercase tracking-wider">[!] CAMERA SHUTDOWN (INACTIVE)</div>
+              <p className="text-slate-400 text-xs">
+                No QR code scanned within 10 seconds. Re-open camera scanner when sender screen is displaying QR code.
+              </p>
+              <button
+                type="button"
+                onClick={handleReopenCamera}
+                className="px-5 py-2.5 bg-emerald-950 hover:bg-emerald-900 border-2 border-emerald-500 text-emerald-300 font-bold text-xs rounded cursor-pointer transition-colors"
+              >
+                📷 RE-OPEN CAMERA SCANNER
+              </button>
             </div>
           )}
         </div>
