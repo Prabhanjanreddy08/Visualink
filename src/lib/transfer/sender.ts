@@ -126,15 +126,15 @@ export class SenderSession {
   }
 
   /**
-   * Renders next frame: alternates metadata control packets with Fountain data packets.
+   * Renders next frame: alternates metadata control packets every 10 frames with Fountain data packets.
    */
   private async renderNextFrame(canvas: HTMLCanvasElement): Promise<void> {
     if (!this.fountainEncoder || !this.metadata) return;
 
     let packet: VLPacket;
 
-    // Transmit metadata control packet during initial 5 frames, then once every 100 frames
-    if (this.currentPacketId < 5 || this.currentPacketId % 100 === 0) {
+    // Transmit metadata control packet every 10 frames to guarantee fast receiver lock (< 300ms)
+    if (this.currentPacketId < 5 || this.currentPacketId % 10 === 0) {
       const metaPayload = encodeMetadataPayload(this.metadata);
       packet = {
         header: {
@@ -156,7 +156,7 @@ export class SenderSession {
     }
 
     const qrText = packetToQRString(packet);
-    await renderQRToCanvas(canvas, qrText, { width: 320, margin: 2, ecLevel: "M" });
+    await renderQRToCanvas(canvas, qrText, { width: 320, margin: 2, ecLevel: "L" });
 
     this.metrics.recordFrameRendered();
     this.currentPacketId++;

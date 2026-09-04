@@ -51,7 +51,7 @@ export function SenderDashboard({ file, pairCode, onCancel }: SenderDashboardPro
 
   const addLog = (msg: string) => {
     const time = new Date().toISOString().substring(11, 19);
-    setLogLines(prev => [`[${time}] ${msg}`, ...prev.slice(0, 5)]);
+    setLogLines(prev => [`[${time}] ${msg}`, ...prev.slice(0, 4)]);
   };
 
   const togglePause = () => {
@@ -80,15 +80,6 @@ export function SenderDashboard({ file, pairCode, onCancel }: SenderDashboardPro
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
-
-  // On the sender side, "Progress" represents how many packets/blocks have been broadcast.
-  // Sender broadcasts infinitely until stopped, but progress shows current cycle count vs total source blocks.
-  const currentSentBlocks = metrics?.currentBlocks ?? 0;
-  const totalFileBlocks = metrics?.totalBlocks ?? 1;
-  const pct = Math.min(100, Math.round((currentSentBlocks / totalFileBlocks) * 100));
-
-  const filledBlocks = Math.floor((pct / 100) * 30);
-  const asciiProgressBar = `[${'█'.repeat(filledBlocks)}${'░'.repeat(Math.max(0, 30 - filledBlocks))}] ${pct.toFixed(1)}%`;
 
   return (
     <div className="w-full max-w-4xl mx-auto space-y-4 font-mono">
@@ -142,7 +133,7 @@ export function SenderDashboard({ file, pairCode, onCancel }: SenderDashboardPro
             </div>
             <div className="metric-box">
               <div className="metric-label">BLOCKS</div>
-              <div className="metric-value text-[11px] pt-1">{currentSentBlocks}/{totalFileBlocks}</div>
+              <div className="metric-value text-[11px] pt-1">{metrics?.currentBlocks ?? 0}/{metrics?.totalBlocks ?? 0}</div>
             </div>
             <div className="metric-box">
               <div className="metric-label">PAYLOAD</div>
@@ -155,13 +146,11 @@ export function SenderDashboard({ file, pairCode, onCancel }: SenderDashboardPro
       {/* QR Display Canvas */}
       <QRDisplay canvasRef={canvasRef} sessionIdHex={sessionIdHex} />
 
-      {/* Terminal Progress & Log Output */}
-      <div className="term-box p-4 rounded-lg space-y-3">
-        <div className="text-xs flex flex-col sm:flex-row justify-between items-start sm:items-center text-emerald-400">
-          <span>BROADCAST CYCLE: {asciiProgressBar}</span>
-          <span className="text-slate-400 text-[11px]">
-            {formatBytes(Math.min(file.size, metrics?.bytesTransferred ?? 0))} / {formatBytes(file.size)}
-          </span>
+      {/* Terminal Log Console */}
+      <div className="term-box p-4 rounded-lg space-y-2">
+        <div className="text-xs flex justify-between items-center text-emerald-400 font-bold border-b border-emerald-500/20 pb-1">
+          <span>FILE: {file.name} ({formatBytes(file.size)})</span>
+          <span className="text-slate-400 text-[11px]">BLOCKS: {metrics?.totalBlocks ?? 0} | SIZE: {metrics?.totalBlocks ? Math.round(file.size / metrics.totalBlocks) : 384}B</span>
         </div>
 
         {/* Live Terminal Console Log Feed */}
