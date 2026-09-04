@@ -75,9 +75,7 @@ export class ReceiverSession {
         const isSessionLocked = this.lockedSessionId !== null || this.metadata !== null;
 
         if (scanResult) {
-          const packet = scanResult.binaryData
-            ? deserializePacket(scanResult.binaryData)
-            : stringToVLPacket(scanResult.rawValue);
+          const packet = stringToVLPacket(scanResult.rawValue);
           if (packet) {
             this.metrics.recordFrameScanned(true);
             await this.processPacket(packet, onMetadataFound, onError);
