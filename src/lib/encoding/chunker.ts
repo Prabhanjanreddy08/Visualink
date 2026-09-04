@@ -11,23 +11,33 @@ export interface ChunkInfo {
 
 /**
  * Calculates optimal QR block size for high-performance optical file transfer.
- * Uses 512 bytes payload per frame (QR Version 10/11) to achieve fast transfer rates
- * while preserving 100% camera scanning decodability.
+ * Enforces a strict cap of MAX 100 total blocks (K <= 100) so transmissions finish in seconds.
  */
 export function calculateOptimalBlockSize(fileSize: number): number {
-  if (fileSize <= 1024) return Math.max(64, fileSize);
-  // Dynamically targets ~100 blocks max for 10 KB/s optical stream speed!
-  const targetBlocks = 100;
-  const calculatedSize = Math.ceil(fileSize / targetBlocks);
-  return Math.min(2560, Math.max(256, calculatedSize));
+  if (fileSize <= 512) return Math.max(64, fileSize);
+  
+  // Enforce max 100 blocks cap (K <= 100)
+  const maxBlocksCap = 100;
+  const minBlockFor100Cap = Math.ceil(fileSize / maxBlocksCap);
+  
+  const baseBlockSize = fileSize <= 100 * 1024 ? 384 : 512;
+  return Math.max(baseBlockSize, minBlockFor100Cap);
 }
 
 /**
  * Calculates ChunkInfo metadata for a file given a desired block size.
+ * Guarantees totalBlocks never exceeds 100.
  */
 export function getChunkInfo(fileSize: number, customBlockSize?: number): ChunkInfo {
-  const blockSize = customBlockSize || calculateOptimalBlockSize(fileSize);
-  const totalBlocks = Math.ceil(fileSize / blockSize) || 1;
+  let blockSize = customBlockSize || calculateOptimalBlockSize(fileSize);
+  let totalBlocks = Math.ceil(fileSize / blockSize) || 1;
+
+  // Unconditional Safety Guarantee: Hard cap totalBlocks at <= 100
+  if (totalBlocks > 100) {
+    blockSize = Math.ceil(fileSize / 100);
+    totalBlocks = Math.ceil(fileSize / blockSize) || 1;
+  }
+
   return { totalBlocks, blockSize, fileSize };
 }
 

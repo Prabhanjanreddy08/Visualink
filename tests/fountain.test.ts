@@ -1,7 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import { FountainEncoder, FountainDecoder } from '../src/lib/encoding/fountain';
 
+import { getChunkInfo } from '../src/lib/encoding/chunker';
+
 describe('Fountain LT Coding & Packet Loss Recovery Engine', () => {
+  it('strictly caps totalBlocks to <= 100 for all file sizes', () => {
+    const testSizes = [1000, 50000, 250000, 1000000, 10000000];
+    for (const size of testSizes) {
+      const info = getChunkInfo(size);
+      expect(info.totalBlocks).toBeLessThanOrEqual(100);
+    }
+  });
   function generateDummyBlocks(K: number, blockSize: number): Uint8Array[] {
     const blocks: Uint8Array[] = [];
     for (let i = 0; i < K; i++) {
