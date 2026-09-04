@@ -25,15 +25,13 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
   const [enteredPairCode, setEnteredPairCode] = useState(pairCode || '8492');
   const [logLines, setLogLines] = useState<string[]>([]);
   const [isCameraActive, setIsCameraActive] = useState<boolean>(true);
-  const [scanCountdown, setScanCountdown] = useState<number>(5);
   const hasAutoDownloadedRef = useRef<boolean>(false);
 
-  // Camera Auto-Off & Download Completion Monitor
+  // Monitor for file download completion & auto-finalize
   useEffect(() => {
-    if (!isCameraActive || result) return;
+    if (result) return;
 
-    const timer = setInterval(async () => {
-      // Continuously check if session has received enough packets to finish downloading file
+    const interval = setInterval(async () => {
       if (receiverRef.current) {
         const completedResult = await receiverRef.current.checkAndFinalize();
         if (completedResult) {
@@ -45,32 +43,18 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
             hasAutoDownloadedRef.current = true;
             triggerFileDownload(completedResult);
           }
-          return;
         }
       }
+    }, 400);
 
-      // If no session locked yet, countdown 10 seconds before turning off inactive camera
-      if (!metadata) {
-        setScanCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            setIsCameraActive(false);
-            addLog('CAMERA TURNED OFF (INACTIVE 10S TIMEOUT) — RE-OPEN SCANNER WHEN SENDER IS READY');
-            return 0;
-          }
-          return prev - 1;
-        });
-      }
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [isCameraActive, metadata, result]);
+    return () => clearInterval(interval);
+  }, [result]);
 
   useEffect(() => {
     const session = new ReceiverSession(enteredPairCode);
     receiverRef.current = session;
 
-    addLog('INIT CAMERA SCANNER ENGINE... WAITING FOR OPTICAL SCAN');
+    addLog('INIT CAMERA SCANNER ENGINE... POINT CAMERA AT SENDER QR CODE');
 
     if (videoRef.current && isCameraActive) {
       session.startScanning(
@@ -111,7 +95,6 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
   }, [enteredPairCode, isCameraActive]);
 
   const handleReopenCamera = () => {
-    setScanCountdown(10);
     setIsCameraActive(true);
     addLog('CAMERA SCANNER ACTIVE (POINT CAMERA AT SENDER QR CODE)');
   };
@@ -232,7 +215,6 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
                 guidanceText={guidanceText}
                 isScanning={!result}
                 isLocked={Boolean(metadata || (sessionIdHex && sessionIdHex !== '—'))}
-                countdownSeconds={!metadata ? scanCountdown : undefined}
               />
 
               {metadata && (

@@ -9,11 +9,10 @@ export interface CameraScannerProps {
   guidanceText: string;
   isScanning: boolean;
   isLocked?: boolean;
-  countdownSeconds?: number;
   onCameraReady?: () => void;
 }
 
-export function CameraScanner({ videoRef, guidanceText, isScanning, isLocked, countdownSeconds, onCameraReady }: CameraScannerProps) {
+export function CameraScanner({ videoRef, guidanceText, isScanning, isLocked, onCameraReady }: CameraScannerProps) {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -62,22 +61,14 @@ export function CameraScanner({ videoRef, guidanceText, isScanning, isLocked, co
 
       {/* Reticle Overlay */}
       <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-between p-4 z-10">
-        {/* Top Status Badge & 5s Timer */}
-        <div className="flex items-center gap-2">
-          <div className={`px-3 py-1 rounded text-xs flex items-center gap-2 transition-colors duration-300 border ${
-            isLocked
-              ? 'bg-emerald-950/95 border-emerald-500/80 text-emerald-300 shadow-lg shadow-emerald-500/20'
-              : 'bg-black/90 border-cyan-500/50 text-cyan-300'
-          }`}>
-            <span className={`w-2 h-2 rounded-full ${isLocked ? 'bg-emerald-400 animate-pulse' : 'bg-cyan-400 animate-ping'}`} />
-            <span className="font-bold">{guidanceText}</span>
-          </div>
-
-          {countdownSeconds !== undefined && (
-            <div className="bg-amber-950/90 border border-amber-500/60 px-2.5 py-1 rounded text-xs text-amber-300 font-bold shadow-lg flex items-center gap-1">
-              <span>⏱ {countdownSeconds}s</span>
-            </div>
-          )}
+        {/* Top Status Badge */}
+        <div className={`px-3 py-1 rounded text-xs flex items-center gap-2 transition-colors duration-300 border ${
+          isLocked
+            ? 'bg-emerald-950/95 border-emerald-500/80 text-emerald-300 shadow-lg shadow-emerald-500/20'
+            : 'bg-black/90 border-cyan-500/50 text-cyan-300'
+        }`}>
+          <span className={`w-2 h-2 rounded-full ${isLocked ? 'bg-emerald-400 animate-pulse' : 'bg-cyan-400 animate-ping'}`} />
+          <span className="font-bold">{guidanceText}</span>
         </div>
 
         {/* Reticle Box */}
