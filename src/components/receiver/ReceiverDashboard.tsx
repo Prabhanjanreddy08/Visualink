@@ -25,6 +25,7 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
   const [logLines, setLogLines] = useState<string[]>([]);
 
   useEffect(() => {
+    let isCancelled = false;
     const session = new ReceiverSession(enteredPairCode);
     receiverRef.current = session;
 
@@ -34,15 +35,18 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
       session.startScanning(
         videoRef.current,
         (meta) => {
+          if (isCancelled) return;
           setMetadata(meta);
           setSessionIdHex(session.getSessionIdHex());
           addLog(`SESSION LOCKED: 0x${session.getSessionIdHex()} FILE=${meta.fileName} TOTAL_BLOCKS=${meta.totalBlocks}`);
         },
         (m, guidance) => {
+          if (isCancelled) return;
           setMetrics(m);
           setGuidanceText(guidance);
         },
         (res) => {
+          if (isCancelled) return;
           setResult(res);
           addLog(`RECONSTRUCTION COMPLETE: SHA256_MATCH=${res.sha256Match}`);
         },
@@ -53,6 +57,7 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
     }
 
     return () => {
+      isCancelled = true;
       session.stopScanning();
     };
   }, [enteredPairCode]);
