@@ -3,7 +3,7 @@
  */
 
 import { QRFrameDecoder } from '../qr/decoder';
-import { VLPacket, PacketType, stringToVLPacket } from '../protocol/packet';
+import { VLPacket, PacketType, stringToVLPacket, deserializePacket } from '../protocol/packet';
 import { FileMetadata, decodeMetadataPayload } from '../protocol/metadata';
 import { FountainDecoder } from '../encoding/fountain';
 import { computeSHA256 } from '../crypto/hashing';
@@ -75,7 +75,9 @@ export class ReceiverSession {
         const isSessionLocked = this.lockedSessionId !== null || this.metadata !== null;
 
         if (scanResult) {
-          const packet = stringToVLPacket(scanResult.rawValue);
+          const packet = scanResult.binaryData
+            ? deserializePacket(scanResult.binaryData)
+            : stringToVLPacket(scanResult.rawValue);
           if (packet) {
             this.metrics.recordFrameScanned(true);
             await this.processPacket(packet, onMetadataFound, onError);

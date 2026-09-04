@@ -7,6 +7,7 @@ import jsQR from 'jsqr';
 
 export interface QRScanResult {
   rawValue: string;
+  binaryData?: Uint8Array;
   guidanceText: string;
   qrBoundingBox?: {
     x: number;
@@ -94,7 +95,11 @@ export class QRFrameDecoder {
     const imageData = this.offscreenCtx.getImageData(0, 0, targetWidth, targetHeight);
     const code = jsQR(imageData.data, targetWidth, targetHeight, { inversionAttempts: "dontInvert" });
 
-    if (code && code.data) {
+    if (code && (code.data || (code.binaryData && code.binaryData.length > 0))) {
+      const binaryData = code.binaryData && code.binaryData.length > 0
+        ? new Uint8Array(code.binaryData)
+        : undefined;
+
       // Scale bounding box location back to full video frame dimensions
       const scaleX = width / targetWidth;
       const scaleY = height / targetHeight;
@@ -109,7 +114,8 @@ export class QRFrameDecoder {
       const guidance = this.computeGuidance(bbox, width, height);
 
       return {
-        rawValue: code.data,
+        rawValue: code.data || "",
+        binaryData,
         guidanceText: guidance,
         qrBoundingBox: bbox,
       };
