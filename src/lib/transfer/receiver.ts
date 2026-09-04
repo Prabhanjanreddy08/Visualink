@@ -131,39 +131,40 @@ export class ReceiverSession {
   ): Promise<void> {
     const { header, payload } = packet;
 
-    // Lock session
-    if (this.lockedSessionId === null) {
-      this.lockedSessionId = header.sessionId;
-    } else if (header.sessionId !== this.lockedSessionId) {
-      return; // Discard packets from different session
+    // 1. Process Metadata Control Packet
+    if (header.type === PacketType.METADATA) {
+      if (!this.metadata || header.sessionId !== this.lockedSessionId) {
+        const meta = decodeMetadataPayload(payload);
+        if (meta) {
+          this.lockedSessionId = header.sessionId;
+          this.metadata = meta;
+          this.metrics.setTotalBytes(meta.fileSize);
+          this.fountainDecoder = new FountainDecoder(meta.totalBlocks, meta.blockSize);
+          this.chunkWriter = await createChunkWriter(meta.fileName, meta.totalBlocks);
+
+          if (meta.encrypted && this.pairCode) {
+            this.cryptoKey = await deriveKeyFromPairCode(this.pairCode);
+          }
+
+          onMetadataFound(meta);
+
+          // Process any early data packets that arrived for this session!
+          if (this.earlyPacketBuffer.length > 0) {
+            for (const earlyPkt of this.earlyPacketBuffer) {
+              if (earlyPkt.header.sessionId === this.lockedSessionId && this.fountainDecoder) {
+                const isNew = this.fountainDecoder.addPacket(earlyPkt);
+                this.metrics.recordPacketReceived(isNew, false, false, earlyPkt.payload.length);
+              }
+            }
+            this.earlyPacketBuffer = [];
+          }
+        }
+        return;
+      }
     }
 
-    // 1. Process Metadata Control Packet
-    if (header.type === PacketType.METADATA && !this.metadata) {
-      const meta = decodeMetadataPayload(payload);
-      if (meta) {
-        this.metadata = meta;
-        this.metrics.setTotalBytes(meta.fileSize);
-        this.fountainDecoder = new FountainDecoder(meta.totalBlocks, meta.blockSize);
-        this.chunkWriter = await createChunkWriter(meta.fileName, meta.totalBlocks);
-
-        if (meta.encrypted && this.pairCode) {
-          this.cryptoKey = await deriveKeyFromPairCode(this.pairCode);
-        }
-
-        onMetadataFound(meta);
-
-        // Process any early data packets that arrived before metadata!
-        if (this.earlyPacketBuffer.length > 0) {
-          for (const earlyPkt of this.earlyPacketBuffer) {
-            if (this.fountainDecoder) {
-              const isNew = this.fountainDecoder.addPacket(earlyPkt);
-              this.metrics.recordPacketReceived(isNew, false, false, earlyPkt.payload.length);
-            }
-          }
-          this.earlyPacketBuffer = [];
-        }
-      }
+    // Discard packets from different sessions
+    if (this.lockedSessionId !== null && header.sessionId !== this.lockedSessionId) {
       return;
     }
 

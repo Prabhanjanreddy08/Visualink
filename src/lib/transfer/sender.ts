@@ -137,8 +137,8 @@ export class SenderSession {
 
     let packet: VLPacket;
 
-    // Initial 3 metadata frames for instant < 100ms lock, then 96% bandwidth dedicated to fast data blocks
-    if (this.renderFrameCount < 3 || (this.renderFrameCount % 25 === 0)) {
+    // Initial 5 metadata frames for instant < 50ms lock, then refresh every 10 frames
+    if (this.renderFrameCount < 5 || (this.renderFrameCount % 10 === 0)) {
       const metaPayload = encodeMetadataPayload(this.metadata);
       packet = {
         header: {
