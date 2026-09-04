@@ -10,7 +10,7 @@ export interface FileSelectorProps {
 
 export function FileSelector({ onFileSelected }: FileSelectorProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [enableEncryption, setEnableEncryption] = useState<boolean>(false);
+  const [enableEncryption, setEnableEncryption] = useState<boolean>(true);
   const [pairCode, setPairCode] = useState<string>(() => generateRandomPairCode());
   const fileInputRef = useRef<HTMLInputElement>(null);
 

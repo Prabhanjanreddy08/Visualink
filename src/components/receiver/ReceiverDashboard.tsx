@@ -32,12 +32,40 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
   useEffect(() => {
     if (!isCameraActive || result) return;
 
-    const timer = setInterval(() => {
+    const timer = setInterval(async () => {
+      // Continuously check if session has received enough packets to reconstruct file
+      if (receiverRef.current) {
+        const completedResult = await receiverRef.current.checkAndFinalize();
+        if (completedResult) {
+          setResult(completedResult);
+          playSuccessBeep();
+          if (completedResult.sha256Match && !hasAutoDownloadedRef.current) {
+            hasAutoDownloadedRef.current = true;
+            triggerFileDownload(completedResult);
+          }
+          return;
+        }
+      }
+
       setScanCountdown((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
           setIsCameraActive(false);
           addLog('CAMERA TURNED OFF AFTER 5S SCAN WINDOW — REDIRECTED TO RECEIVING SECTION');
+
+          // Check final reconstruction status when camera turns off
+          if (receiverRef.current) {
+            receiverRef.current.checkAndFinalize().then((finalRes) => {
+              if (finalRes) {
+                setResult(finalRes);
+                playSuccessBeep();
+                if (finalRes.sha256Match && !hasAutoDownloadedRef.current) {
+                  hasAutoDownloadedRef.current = true;
+                  triggerFileDownload(finalRes);
+                }
+              }
+            });
+          }
           return 0;
         }
         return prev - 1;
@@ -238,8 +266,38 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
                     <div>FILE_NAME: <span className="font-bold text-slate-100">{metadata.fileName}</span></div>
                     <div>FILE_SIZE: <span className="font-bold text-emerald-400">{formatBytes(metadata.fileSize)}</span></div>
                     <div>TOTAL_BLOCKS: <span className="font-bold text-cyan-400">{metadata.totalBlocks}</span></div>
-                    <div>SHA256: <span className="text-slate-400">{metadata.sha256.substring(0, 14)}...</span></div>
+                    <div>ENCRYPTION: <span className="text-amber-400 font-bold">{metadata.encrypted ? 'AES-256-GCM ACTIVE' : 'DISABLED'}</span></div>
                   </div>
+
+                  {metadata.encrypted && (
+                    <div className="bg-amber-950/40 p-2.5 rounded border border-amber-500/40 flex items-center justify-between">
+                      <span className="text-amber-300 font-bold flex items-center gap-1.5">
+                        🔒 ENTER PAIR CODE TO DECRYPT:
+                      </span>
+                      <input
+                        type="text"
+                        maxLength={6}
+                        value={enteredPairCode}
+                        onChange={async (e) => {
+                          const code = e.target.value;
+                          setEnteredPairCode(code);
+                          if (receiverRef.current) {
+                            receiverRef.current.setPairCode(code);
+                            const res = await receiverRef.current.checkAndFinalize();
+                            if (res) {
+                              setResult(res);
+                              playSuccessBeep();
+                              if (res.sha256Match && !hasAutoDownloadedRef.current) {
+                                hasAutoDownloadedRef.current = true;
+                                triggerFileDownload(res);
+                              }
+                            }
+                          }
+                        }}
+                        className="px-3 py-1 bg-black border border-amber-500 text-amber-300 text-center font-bold tracking-widest rounded w-28 text-sm"
+                      />
+                    </div>
+                  )}
 
                   <div className="space-y-1 pt-1">
                     <div className="flex justify-between text-emerald-400 font-bold">

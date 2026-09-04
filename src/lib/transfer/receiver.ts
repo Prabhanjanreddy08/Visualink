@@ -32,13 +32,17 @@ export class ReceiverSession {
   private isScanning: boolean = false;
   private pairCode?: string;
   private cryptoKey: CryptoKey | null = null;
-  private animFrameId: number | null = null;
-  private lockedSessionId: number | null = null;
+  private earlyPacketBuffer: VLPacket[] = [];
+  private onCompleteCallback?: (result: ReceiverResult) => void;
 
   constructor(pairCode?: string) {
     this.decoder = new QRFrameDecoder();
     this.pairCode = pairCode;
     this.metrics = new MetricsTracker();
+  }
+
+  public setPairCode(code?: string): void {
+    this.pairCode = code;
   }
 
   /**
@@ -53,6 +57,7 @@ export class ReceiverSession {
   ): void {
     if (this.isScanning) return;
     this.isScanning = true;
+    this.onCompleteCallback = onComplete;
     this.metrics.reset();
 
     let lastProgressTime = 0;
@@ -98,10 +103,10 @@ export class ReceiverSession {
         }
 
         // Check completion
-        if (this.fountainDecoder && this.fountainDecoder.isComplete() && this.metadata) {
+        const completedResult = await this.checkAndFinalize();
+        if (completedResult) {
           this.isScanning = false;
-          const result = await this.finalizeReconstruction();
-          onComplete(result);
+          if (this.onCompleteCallback) this.onCompleteCallback(completedResult);
           return;
         }
       } catch (err: any) {
@@ -145,18 +150,51 @@ export class ReceiverSession {
         }
 
         onMetadataFound(meta);
+
+        // Process any early data packets that arrived before metadata!
+        if (this.earlyPacketBuffer.length > 0) {
+          for (const earlyPkt of this.earlyPacketBuffer) {
+            if (this.fountainDecoder) {
+              const isNew = this.fountainDecoder.addPacket(earlyPkt);
+              this.metrics.recordPacketReceived(isNew, false, false, earlyPkt.payload.length);
+            }
+          }
+          this.earlyPacketBuffer = [];
+        }
       }
       return;
     }
 
     // 2. Process Data Packet
-    if (header.type === PacketType.DATA && this.fountainDecoder) {
-      const isNew = this.fountainDecoder.addPacket(packet);
-      const isDup = this.fountainDecoder.duplicateCount > 0;
-      const isRed = this.fountainDecoder.redundantCount > 0;
+    if (header.type === PacketType.DATA) {
+      if (this.fountainDecoder) {
+        const isNew = this.fountainDecoder.addPacket(packet);
+        const isDup = this.fountainDecoder.duplicateCount > 0;
+        const isRed = this.fountainDecoder.redundantCount > 0;
 
-      this.metrics.recordPacketReceived(isNew, isDup, isRed, payload.length);
+        this.metrics.recordPacketReceived(isNew, isDup, isRed, payload.length);
+      } else {
+        // Buffer data packets received before metadata packet arrives
+        this.earlyPacketBuffer.push(packet);
+      }
     }
+
+    // Check completion immediately after processing packet
+    const completedResult = await this.checkAndFinalize();
+    if (completedResult && this.onCompleteCallback) {
+      this.isScanning = false;
+      this.onCompleteCallback(completedResult);
+    }
+  }
+
+  /**
+   * Checks if decoding is complete and finalizes file reconstruction if ready.
+   */
+  public async checkAndFinalize(): Promise<ReceiverResult | null> {
+    if (this.fountainDecoder && this.fountainDecoder.isComplete() && this.metadata) {
+      return await this.finalizeReconstruction();
+    }
+    return null;
   }
 
   /**
