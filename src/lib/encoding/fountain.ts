@@ -55,17 +55,21 @@ export function selectBlockIndices(rng: () => number, K: number, degree: number)
   return Array.from(indices).sort((a, b) => a - b);
 }
 
-/**
- * Gets degree and block indices for a given packetId and totalBlocks K using K(o) algorithm.
- * Systematic Interleaving: Alternates pure systematic passes (0..K-1) with K(o) low-degree fountain passes.
- */
 export function getPacketBlockMapping(packetId: number, K: number): { degree: number; indices: number[] } {
   if (K === 1) return { degree: 1, indices: [0] };
 
-  // Interleaved Systematic Pass every 2K packets for fast camera recovery
-  const cycleIndex = packetId % (2 * K);
-  if (cycleIndex < K) {
-    return { degree: 1, indices: [cycleIndex] };
+  // Pass 1: Pure Systematic Pass for initial K packets (0..K-1)
+  if (packetId < K) {
+    return { degree: 1, indices: [packetId] };
+  }
+
+  // Pass 2+: 1:1 Interleaved Systematic Round-Robin & K(o) Soliton Fountain Pairs
+  // Even packetId offsets: Systematic Block retry
+  // Odd packetId offsets: K(o) Low-Degree Soliton Fountain Pair/Triplet (d <= 3)
+  const offset = packetId - K;
+  if (offset % 2 === 0) {
+    const sysIndex = Math.floor(offset / 2) % K;
+    return { degree: 1, indices: [sysIndex] };
   }
 
   const rng = mulberry32(packetId);

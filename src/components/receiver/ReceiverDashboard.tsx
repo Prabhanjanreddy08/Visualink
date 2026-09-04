@@ -129,45 +129,45 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
 
           {/* ASCII Dashboard Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-10 gap-1 text-center text-xs">
-            <div className="metric-box border-cyan-500/30">
+            <div className="metric-box border-cyan-100/30">
               <div className="metric-label text-cyan-400">CAPT_FPS</div>
               <div className="metric-value text-cyan-300">{metrics?.captureFps ?? 30}</div>
             </div>
-            <div className="metric-box border-cyan-500/30">
+            <div className="metric-box border-cyan-100/30">
               <div className="metric-label text-cyan-400">DECD_FPS</div>
               <div className="metric-value text-cyan-300">{metrics?.decodeFps ?? 0}</div>
             </div>
-            <div className="metric-box border-cyan-500/30">
+            <div className="metric-box border-cyan-100/30">
               <div className="metric-label text-cyan-400">LOCK</div>
               <div className="metric-value text-[11px] pt-1 text-cyan-200">{sessionIdHex}</div>
             </div>
-            <div className="metric-box border-cyan-500/30">
+            <div className="metric-box border-cyan-100/30">
               <div className="metric-label text-cyan-400">DROPPED</div>
               <div className="metric-value text-amber-400">{metrics?.droppedFrames ?? 0}</div>
             </div>
-            <div className="metric-box border-cyan-500/30">
+            <div className="metric-box border-cyan-100/30">
               <div className="metric-label text-cyan-400">GOODPUT</div>
               <div className="metric-value text-emerald-400">{metrics?.goodputKBps ?? 0}K/s</div>
             </div>
-            <div className="metric-box border-cyan-500/30">
+            <div className="metric-box border-cyan-100/30">
               <div className="metric-label text-cyan-400">ELAPSED</div>
               <div className="metric-value text-cyan-300">{formatSeconds(metrics?.elapsedSeconds ?? 0)}</div>
             </div>
-            <div className="metric-box border-cyan-500/30">
+            <div className="metric-box border-cyan-100/30">
               <div className="metric-label text-cyan-400">FRAMES</div>
               <div className="metric-value text-cyan-300">{metrics?.totalFrames ?? 0}</div>
             </div>
-            <div className="metric-box border-cyan-500/30">
+            <div className="metric-box border-cyan-100/30">
               <div className="metric-label text-cyan-400">NEW/DUP/RED</div>
               <div className="metric-value text-[10px] pt-1 text-cyan-200">
                 {metrics?.newPackets ?? 0}/{metrics?.duplicatePackets ?? 0}/{metrics?.redundantPackets ?? 0}
               </div>
             </div>
-            <div className="metric-box border-cyan-500/30">
+            <div className="metric-box border-cyan-100/30">
               <div className="metric-label text-cyan-400">BLOCKS</div>
               <div className="metric-value text-[11px] pt-1 text-cyan-300">{metrics?.currentBlocks ?? 0}/{metrics?.totalBlocks ?? 0}</div>
             </div>
-            <div className="metric-box border-cyan-500/30">
+            <div className="metric-box border-cyan-100/30">
               <div className="metric-label text-cyan-400">PAYLOAD</div>
               <div className="metric-value text-cyan-300">{metrics?.payloadKBps ?? 0}K/s</div>
             </div>

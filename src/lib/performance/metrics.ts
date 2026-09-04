@@ -37,6 +37,8 @@ export class MetricsTracker {
   private currentCaptureFps: number = 0;
   private currentDecodeFps: number = 0;
 
+  private recentBytesSamples: { time: number; bytes: number }[] = [];
+
   constructor() {
     this.reset();
   }
@@ -56,6 +58,7 @@ export class MetricsTracker {
     this.fpsDecodeCounter = 0;
     this.currentCaptureFps = 0;
     this.currentDecodeFps = 0;
+    this.recentBytesSamples = [];
   }
 
   public setTotalBytes(fileBytes: number): void {
@@ -88,6 +91,7 @@ export class MetricsTracker {
     } else if (isNew) {
       this.newPacketCount++;
       this.totalBytesTransferred += payloadBytes;
+      this.recentBytesSamples.push({ time: Date.now(), bytes: payloadBytes });
     }
   }
 
@@ -106,8 +110,18 @@ export class MetricsTracker {
   public getSnapshot(currentBlocks: number, totalBlocks: number): TransferMetrics {
     const now = Date.now();
     const elapsedSec = Math.max(0.1, (now - this.startTime) / 1000);
-    const goodputKBps = (this.totalBytesTransferred / 1024) / elapsedSec;
-    const payloadKBps = ((currentBlocks / Math.max(1, totalBlocks)) * this.totalFileBytes / 1024) / elapsedSec;
+
+    // Prune sliding window byte samples older than 2.5 seconds
+    this.recentBytesSamples = this.recentBytesSamples.filter(s => now - s.time <= 2500);
+    const windowBytes = this.recentBytesSamples.reduce((sum, s) => sum + s.bytes, 0);
+    const windowSec = Math.max(0.5, Math.min(2.5, elapsedSec));
+
+    // Live sliding-window instant speeds
+    const instantKBps = (windowBytes / 1024) / windowSec;
+    const overallGoodput = (this.totalBytesTransferred / 1024) / elapsedSec;
+    const goodputKBps = Math.max(instantKBps, overallGoodput);
+    const payloadKBps = Math.max(instantKBps, (this.totalBytesTransferred / 1024) / elapsedSec);
+
     const progress = totalBlocks > 0 ? Math.min(100, (currentBlocks / totalBlocks) * 100) : 0;
 
     let remainingSec = 0;
