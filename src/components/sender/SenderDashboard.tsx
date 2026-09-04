@@ -101,27 +101,15 @@ export function SenderDashboard({ file, pairCode, onCancel }: SenderDashboardPro
             <span className="text-amber-400 text-[11px]">[AIR-GAPPED]</span>
           </div>
 
-          {/* ASCII Dashboard Box */}
-          <div className="grid grid-cols-3 sm:grid-cols-9 gap-1 text-center text-xs">
+          {/* Clean Sender Dashboard Metrics Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
             <div className="metric-box">
-              <div className="metric-label">CAPT_FPS</div>
-              <div className="metric-value">{metrics?.captureFps ?? 60}</div>
-            </div>
-            <div className="metric-box">
-              <div className="metric-label">DECD_FPS</div>
-              <div className="metric-value text-emerald-600">—</div>
-            </div>
-            <div className="metric-box">
-              <div className="metric-label">GOODPUT</div>
-              <div className="metric-value">{metrics?.goodputKBps ?? 0}K/s</div>
+              <div className="metric-label">TX_FPS</div>
+              <div className="metric-value">{metrics?.captureFps ?? 30}</div>
             </div>
             <div className="metric-box">
               <div className="metric-label">ELAPSED</div>
               <div className="metric-value">{formatSeconds(metrics?.elapsedSeconds ?? 0)}</div>
-            </div>
-            <div className="metric-box">
-              <div className="metric-label">DROPPED</div>
-              <div className="metric-value text-amber-400">{metrics?.droppedFrames ?? 0}</div>
             </div>
             <div className="metric-box">
               <div className="metric-label">FRAMES</div>
@@ -134,10 +122,6 @@ export function SenderDashboard({ file, pairCode, onCancel }: SenderDashboardPro
             <div className="metric-box">
               <div className="metric-label">BLOCKS</div>
               <div className="metric-value text-[11px] pt-1">{metrics?.currentBlocks ?? 0}/{metrics?.totalBlocks ?? 0}</div>
-            </div>
-            <div className="metric-box">
-              <div className="metric-label">PAYLOAD</div>
-              <div className="metric-value">{metrics?.payloadKBps ?? 0}K/s</div>
             </div>
           </div>
         </div>
