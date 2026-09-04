@@ -90,7 +90,7 @@ export class SenderSession {
    */
   public startTransmission(
     canvas: HTMLCanvasElement,
-    targetFps: number = 30,
+    targetFps: number = 60,
     onMetricsUpdate?: (metrics: TransferMetrics) => void
   ): void {
     if (this.isRunning) return;
