@@ -21,9 +21,9 @@ export async function renderQRToCanvas(
   text: string,
   options?: QROptions
 ): Promise<void> {
-  const ecLevel = options?.ecLevel || "M";
-  const margin = options?.margin ?? 2;
-  const targetWidth = options?.width ?? 320;
+  const ecLevel = options?.ecLevel || "L";
+  const margin = options?.margin ?? 1;
+  const targetWidth = options?.width ?? 450;
   const darkColor = options?.darkColor || "#000000";
   const lightColor = options?.lightColor || "#FFFFFF";
 

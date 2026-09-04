@@ -34,6 +34,7 @@ export class ReceiverSession {
   private cryptoKey: CryptoKey | null = null;
   private animFrameId: number | null = null;
   private lockedSessionId: number | null = null;
+  private lastScannedRawValue: string = "";
 
   constructor(pairCode?: string) {
     this.decoder = new QRFrameDecoder();
@@ -54,6 +55,7 @@ export class ReceiverSession {
     if (this.isScanning) return;
     this.isScanning = true;
     this.metrics.reset();
+    this.lastScannedRawValue = "";
 
     let lastProgressTime = 0;
 
@@ -65,6 +67,13 @@ export class ReceiverSession {
         const now = Date.now();
 
         if (scanResult) {
+          // Instant 0.01ms skip for duplicate camera video frames
+          if (scanResult.rawValue === this.lastScannedRawValue) {
+            this.animFrameId = requestAnimationFrame(scanLoop);
+            return;
+          }
+          this.lastScannedRawValue = scanResult.rawValue;
+
           const packet = stringToVLPacket(scanResult.rawValue);
           if (packet) {
             this.metrics.recordFrameScanned(true);

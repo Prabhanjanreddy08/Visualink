@@ -161,7 +161,7 @@ export class SenderSession {
     }
 
     const qrText = packetToQRString(packet);
-    await renderQRToCanvas(canvas, qrText, { width: 320, margin: 2, ecLevel: "L" });
+    await renderQRToCanvas(canvas, qrText, { width: 450, margin: 1, ecLevel: "L" });
 
     this.metrics.recordFrameRendered();
     this.renderFrameCount++;

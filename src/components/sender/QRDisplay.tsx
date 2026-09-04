@@ -20,23 +20,23 @@ export const QRDisplay = React.memo(function QRDisplay({ canvasRef, sessionIdHex
       </div>
 
       {/* Terminal Style Frame around Canvas with Fixed Outer Dimensions */}
-      <div className="term-box p-3 rounded-lg border-2 border-emerald-500/50 bg-black text-center shadow-2xl shadow-emerald-500/10 w-[344px] flex-shrink-0">
+      <div className="term-box p-3 rounded-lg border-2 border-emerald-500/50 bg-black text-center shadow-2xl shadow-emerald-500/10 w-full max-w-[480px] flex-shrink-0">
         <div className="text-[10px] text-emerald-400/80 mb-2 border-b border-emerald-500/20 pb-1 flex justify-between items-center">
           <span>┌─ [OPTICAL MATRIX] FRAME #{packetId ?? 0}</span>
           <span>SESH: {sessionIdHex} ─┐</span>
         </div>
 
-        <div className="w-[320px] h-[320px] mx-auto overflow-hidden bg-black flex items-center justify-center">
+        <div className="w-full aspect-square mx-auto overflow-hidden bg-white p-2 rounded flex items-center justify-center">
           <canvas
             ref={canvasRef}
-            width={320}
-            height={320}
-            className="w-[320px] h-[320px] rounded image-rendering-pixelated border border-emerald-500/30"
+            width={450}
+            height={450}
+            className="w-full h-full rounded image-rendering-pixelated"
           />
         </div>
 
         <div className="text-[10px] text-emerald-400 mt-2 border-t border-emerald-500/20 pt-1 flex items-center justify-between">
-          <span>└─ UNIQUE PACKET MATRIX </span>
+          <span>└─ DECIMEN-SPEED HIGH DENSITY OPTICAL MATRIX </span>
           <span className="text-emerald-300 animate-pulse">● OPTICAL_LINK_ACTIVE</span>
         </div>
       </div>

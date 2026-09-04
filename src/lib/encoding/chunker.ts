@@ -15,9 +15,9 @@ export interface ChunkInfo {
  * while preserving 100% camera scanning decodability.
  */
 export function calculateOptimalBlockSize(fileSize: number): number {
-  if (fileSize <= 1024) return Math.max(64, fileSize); // <= 1 KB -> 1 single block instant scan!
-  if (fileSize <= 50 * 1024) return 128;               // <= 50 KB -> 128 B (Version 6 QR: 41x41 modules, huge pixels!)
-  return 180;                                          // > 50 KB -> 180 B (Version 8 QR: 49x49 modules, ultra-fast 30-60 FPS scan!)
+  if (fileSize <= 2048) return Math.max(128, fileSize); // <= 2 KB -> 1 single block instant scan!
+  if (fileSize <= 100 * 1024) return 1024;              // <= 100 KB -> 1024 B (~10 to 100 blocks)
+  return 2048;                                         // > 100 KB -> 2048 B (Decimen standard: 122 blocks for 250KB file!)
 }
 
 /**
