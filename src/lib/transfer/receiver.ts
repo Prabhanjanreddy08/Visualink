@@ -3,7 +3,7 @@
  */
 
 import { QRFrameDecoder } from '../qr/decoder';
-import { VLPacket, PacketType, stringToVLPacket, deserializePacket } from '../protocol/packet';
+import { VLPacket, PacketType, stringToVLPacket } from '../protocol/packet';
 import { FileMetadata, decodeMetadataPayload } from '../protocol/metadata';
 import { FountainDecoder } from '../encoding/fountain';
 import { computeSHA256 } from '../crypto/hashing';
@@ -21,7 +21,6 @@ export interface ReceiverResult {
   expectedHash: string;
   elapsedSeconds: number;
   goodputKBps: number;
-  decryptionError?: boolean;
 }
 
 export class ReceiverSession {
@@ -35,17 +34,11 @@ export class ReceiverSession {
   private cryptoKey: CryptoKey | null = null;
   private animFrameId: number | null = null;
   private lockedSessionId: number | null = null;
-  private earlyPacketBuffer: VLPacket[] = [];
-  private onCompleteCallback?: (result: ReceiverResult) => void;
 
   constructor(pairCode?: string) {
     this.decoder = new QRFrameDecoder();
     this.pairCode = pairCode;
     this.metrics = new MetricsTracker();
-  }
-
-  public setPairCode(code?: string): void {
-    this.pairCode = code;
   }
 
   /**
@@ -60,7 +53,6 @@ export class ReceiverSession {
   ): void {
     if (this.isScanning) return;
     this.isScanning = true;
-    this.onCompleteCallback = onComplete;
     this.metrics.reset();
 
     let lastProgressTime = 0;
@@ -71,8 +63,6 @@ export class ReceiverSession {
       try {
         const scanResult = await this.decoder.decodeFrame(video);
         const now = Date.now();
-
-        const isSessionLocked = this.lockedSessionId !== null || this.metadata !== null;
 
         if (scanResult) {
           const packet = stringToVLPacket(scanResult.rawValue);
@@ -87,10 +77,7 @@ export class ReceiverSession {
             lastProgressTime = now;
             const current = this.fountainDecoder ? this.fountainDecoder.getDecodedCount() : 0;
             const total = this.metadata ? this.metadata.totalBlocks : 0;
-            const guidance = isSessionLocked
-              ? `[✓] OPTICAL LINK CONNECTED — RECEIVING BLOCKS (${current}/${total})`
-              : scanResult.guidanceText;
-            onProgress(this.metrics.getSnapshot(current, total), guidance);
+            onProgress(this.metrics.getSnapshot(current, total), scanResult.guidanceText);
           }
         } else {
           this.metrics.recordFrameScanned(false);
@@ -98,18 +85,15 @@ export class ReceiverSession {
             lastProgressTime = now;
             const current = this.fountainDecoder ? this.fountainDecoder.getDecodedCount() : 0;
             const total = this.metadata ? this.metadata.totalBlocks : 0;
-            const guidance = isSessionLocked
-              ? `[✓] OPTICAL LINK CONNECTED — RECEIVING BLOCKS (${current}/${total})`
-              : "Point camera at sender screen";
-            onProgress(this.metrics.getSnapshot(current, total), guidance);
+            onProgress(this.metrics.getSnapshot(current, total), "Point camera at sender screen");
           }
         }
 
         // Check completion
-        const completedResult = await this.checkAndFinalize();
-        if (completedResult) {
+        if (this.fountainDecoder && this.fountainDecoder.isComplete() && this.metadata) {
           this.isScanning = false;
-          if (this.onCompleteCallback) this.onCompleteCallback(completedResult);
+          const result = await this.finalizeReconstruction();
+          onComplete(result);
           return;
         }
       } catch (err: any) {
@@ -132,73 +116,39 @@ export class ReceiverSession {
   ): Promise<void> {
     const { header, payload } = packet;
 
-    // 1. Process Metadata Control Packet
-    if (header.type === PacketType.METADATA) {
-      if (!this.metadata || header.sessionId !== this.lockedSessionId) {
-        const meta = decodeMetadataPayload(payload);
-        if (meta) {
-          this.lockedSessionId = header.sessionId;
-          this.metadata = meta;
-          this.metrics.setTotalBytes(meta.fileSize);
-          this.fountainDecoder = new FountainDecoder(meta.totalBlocks, meta.blockSize);
-          this.chunkWriter = await createChunkWriter(meta.fileName, meta.totalBlocks);
-
-          if (meta.encrypted && this.pairCode) {
-            this.cryptoKey = await deriveKeyFromPairCode(this.pairCode);
-          }
-
-          onMetadataFound(meta);
-
-          // Process any early data packets that arrived for this session!
-          if (this.earlyPacketBuffer.length > 0) {
-            for (const earlyPkt of this.earlyPacketBuffer) {
-              if (earlyPkt.header.sessionId === this.lockedSessionId && this.fountainDecoder) {
-                const isNew = this.fountainDecoder.addPacket(earlyPkt);
-                this.metrics.recordPacketReceived(isNew, false, false, earlyPkt.payload.length);
-              }
-            }
-            this.earlyPacketBuffer = [];
-          }
-        }
-        return;
-      }
+    // Lock session
+    if (this.lockedSessionId === null) {
+      this.lockedSessionId = header.sessionId;
+    } else if (header.sessionId !== this.lockedSessionId) {
+      return; // Discard packets from different session
     }
 
-    // Discard packets from different sessions
-    if (this.lockedSessionId !== null && header.sessionId !== this.lockedSessionId) {
+    // 1. Process Metadata Control Packet
+    if (header.type === PacketType.METADATA && !this.metadata) {
+      const meta = decodeMetadataPayload(payload);
+      if (meta) {
+        this.metadata = meta;
+        this.metrics.setTotalBytes(meta.fileSize);
+        this.fountainDecoder = new FountainDecoder(meta.totalBlocks, meta.blockSize);
+        this.chunkWriter = await createChunkWriter(meta.fileName, meta.totalBlocks);
+
+        if (meta.encrypted && this.pairCode) {
+          this.cryptoKey = await deriveKeyFromPairCode(this.pairCode);
+        }
+
+        onMetadataFound(meta);
+      }
       return;
     }
 
     // 2. Process Data Packet
-    if (header.type === PacketType.DATA) {
-      if (this.fountainDecoder) {
-        const isNew = this.fountainDecoder.addPacket(packet);
-        const isDup = this.fountainDecoder.duplicateCount > 0;
-        const isRed = this.fountainDecoder.redundantCount > 0;
+    if (header.type === PacketType.DATA && this.fountainDecoder) {
+      const isNew = this.fountainDecoder.addPacket(packet);
+      const isDup = this.fountainDecoder.duplicateCount > 0;
+      const isRed = this.fountainDecoder.redundantCount > 0;
 
-        this.metrics.recordPacketReceived(isNew, isDup, isRed, payload.length);
-      } else {
-        // Buffer data packets received before metadata packet arrives
-        this.earlyPacketBuffer.push(packet);
-      }
+      this.metrics.recordPacketReceived(isNew, isDup, isRed, payload.length);
     }
-
-    // Check completion immediately after processing packet
-    const completedResult = await this.checkAndFinalize();
-    if (completedResult && this.onCompleteCallback) {
-      this.isScanning = false;
-      this.onCompleteCallback(completedResult);
-    }
-  }
-
-  /**
-   * Checks if decoding is complete and finalizes file reconstruction if ready.
-   */
-  public async checkAndFinalize(): Promise<ReceiverResult | null> {
-    if (this.fountainDecoder && this.fountainDecoder.isComplete() && this.metadata) {
-      return await this.finalizeReconstruction();
-    }
-    return null;
   }
 
   /**
@@ -210,42 +160,23 @@ export class ReceiverSession {
     }
 
     let fileBuffer = this.fountainDecoder.getReconstructedFileBuffer(this.metadata.fileSize);
-    let decryptionError = false;
 
     // Decrypt if encrypted
     if (this.metadata.encrypted) {
-      try {
-        if (this.pairCode && this.pairCode.trim().length > 0) {
-          this.cryptoKey = await deriveKeyFromPairCode(this.pairCode);
-        }
-        if (!this.cryptoKey || !this.metadata.iv) {
-          throw new Error("Missing pair code key or IV for decryption");
-        }
-
-        const iv = new Uint8Array(
-          this.metadata.iv.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || []
-        );
-        fileBuffer = await decryptBuffer(fileBuffer, this.cryptoKey, iv);
-      } catch {
-        decryptionError = true;
+      if (!this.cryptoKey && this.pairCode) {
+        this.cryptoKey = await deriveKeyFromPairCode(this.pairCode);
       }
-    }
+      if (!this.cryptoKey) {
+        throw new Error("Encrypted file requires valid pairing key");
+      }
+      if (!this.metadata.iv) {
+        throw new Error("Missing IV for decryption");
+      }
 
-    const snapshot = this.metrics.getSnapshot(this.metadata.totalBlocks, this.metadata.totalBlocks);
-
-    if (decryptionError) {
-      return {
-        fileBlob: new Blob([], { type: this.metadata.mimeType }),
-        fileName: this.metadata.fileName,
-        fileSize: this.metadata.fileSize,
-        mimeType: this.metadata.mimeType,
-        sha256Match: false,
-        calculatedHash: "DECRYPTION_KEY_REQUIRED",
-        expectedHash: this.metadata.sha256,
-        elapsedSeconds: snapshot.elapsedSeconds,
-        goodputKBps: snapshot.goodputKBps,
-        decryptionError: true,
-      };
+      const iv = new Uint8Array(
+        this.metadata.iv.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || []
+      );
+      fileBuffer = await decryptBuffer(fileBuffer, this.cryptoKey, iv);
     }
 
     // Calculate SHA-256 hash
@@ -253,6 +184,8 @@ export class ReceiverSession {
     const sha256Match = calculatedHash.toLowerCase() === this.metadata.sha256.toLowerCase();
 
     const fileBlob = new Blob([fileBuffer.buffer as unknown as ArrayBuffer], { type: this.metadata.mimeType });
+
+    const snapshot = this.metrics.getSnapshot(this.metadata.totalBlocks, this.metadata.totalBlocks);
 
     return {
       fileBlob,
@@ -264,7 +197,6 @@ export class ReceiverSession {
       expectedHash: this.metadata.sha256,
       elapsedSeconds: snapshot.elapsedSeconds,
       goodputKBps: snapshot.goodputKBps,
-      decryptionError: false,
     };
   }
 

@@ -24,45 +24,21 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
   const [sessionIdHex, setSessionIdHex] = useState('—');
   const [enteredPairCode, setEnteredPairCode] = useState(pairCode || '8492');
   const [logLines, setLogLines] = useState<string[]>([]);
-  const [isCameraActive, setIsCameraActive] = useState<boolean>(true);
   const hasAutoDownloadedRef = useRef<boolean>(false);
-
-  // Monitor for file download completion & auto-finalize
-  useEffect(() => {
-    if (result) return;
-
-    const interval = setInterval(async () => {
-      if (receiverRef.current) {
-        const completedResult = await receiverRef.current.checkAndFinalize();
-        if (completedResult) {
-          setIsCameraActive(false);
-          setResult(completedResult);
-          playSuccessBeep();
-          addLog(`FILE DOWNLOAD COMPLETE: SHA256_MATCH=${completedResult.sha256Match}`);
-          if (completedResult.sha256Match && !hasAutoDownloadedRef.current) {
-            hasAutoDownloadedRef.current = true;
-            triggerFileDownload(completedResult);
-          }
-        }
-      }
-    }, 400);
-
-    return () => clearInterval(interval);
-  }, [result]);
 
   useEffect(() => {
     const session = new ReceiverSession(enteredPairCode);
     receiverRef.current = session;
 
-    addLog('INIT CAMERA SCANNER ENGINE... POINT CAMERA AT SENDER QR CODE');
+    addLog('INIT CAMERA SCANNER ENGINE... WAITING FOR OPTICAL LOCK');
 
-    if (videoRef.current && isCameraActive) {
+    if (videoRef.current) {
       session.startScanning(
         videoRef.current,
         (meta) => {
           setMetadata(meta);
           setSessionIdHex(session.getSessionIdHex());
-          addLog(`OPTICAL LOCK ESTABLISHED: 0x${session.getSessionIdHex()} FILE=${meta.fileName} TOTAL_BLOCKS=${meta.totalBlocks}`);
+          addLog(`SESSION LOCKED: 0x${session.getSessionIdHex()} FILE=${meta.fileName} TOTAL_BLOCKS=${meta.totalBlocks}`);
           playLockBeep();
         },
         (m, guidance) => {
@@ -70,9 +46,8 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
           setGuidanceText(guidance);
         },
         (res) => {
-          setIsCameraActive(false);
           setResult(res);
-          addLog(`FILE DOWNLOAD COMPLETE: SHA256_MATCH=${res.sha256Match}`);
+          addLog(`RECONSTRUCTION COMPLETE: SHA256_MATCH=${res.sha256Match}`);
           playSuccessBeep();
 
           // UPI-Style Auto Download Trigger
@@ -92,12 +67,7 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
     return () => {
       session.stopScanning();
     };
-  }, [enteredPairCode, isCameraActive]);
-
-  const handleReopenCamera = () => {
-    setIsCameraActive(true);
-    addLog('CAMERA SCANNER ACTIVE (POINT CAMERA AT SENDER QR CODE)');
-  };
+  }, [enteredPairCode]);
 
   const addLog = (msg: string) => {
     const time = new Date().toISOString().substring(11, 19);
@@ -208,86 +178,35 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
       {/* Main View Area */}
       {!result ? (
         <div className="space-y-4">
-          {isCameraActive ? (
-            <div className="space-y-4">
-              <CameraScanner
-                videoRef={videoRef}
-                guidanceText={guidanceText}
-                isScanning={!result}
-                isLocked={Boolean(metadata || (sessionIdHex && sessionIdHex !== '—'))}
-              />
+          <CameraScanner
+            videoRef={videoRef}
+            guidanceText={guidanceText}
+            isScanning={!result}
+          />
 
-              {metadata && (
-                <div className="term-box-cyan p-4 rounded-lg space-y-3 bg-[#020a06] border-2 border-emerald-500/50 shadow-2xl">
-                  <div className="text-xs text-emerald-400 flex justify-between items-center border-b border-emerald-500/20 pb-2">
-                    <span className="flex items-center gap-1.5 font-bold text-emerald-300">
-                      <Zap className="w-4 h-4 text-emerald-400 animate-pulse" />
-                      [ ✓ ] OPTICAL LOCK ESTABLISHED — DOWNLOADING FILE...
-                    </span>
-                    <span className="text-emerald-200 font-bold">{formatBytes(metadata.fileSize)}</span>
-                  </div>
+          {metadata && (
+            <div className="term-box-cyan p-4 rounded-lg space-y-3">
+              <div className="text-xs text-cyan-400 flex justify-between items-center border-b border-cyan-500/20 pb-2">
+                <span className="flex items-center gap-1.5 font-bold text-cyan-300">
+                  <Zap className="w-4 h-4 text-cyan-400 animate-pulse" />
+                  [!] OPTICAL_LOCK_ESTABLISHED
+                </span>
+                <span className="text-cyan-200 font-bold">{formatBytes(metadata.fileSize)}</span>
+              </div>
 
-                  <div className="grid grid-cols-2 gap-2 text-xs text-cyan-300 bg-black/60 p-2.5 rounded border border-emerald-500/20">
-                    <div>FILE_NAME: <span className="font-bold text-slate-100">{metadata.fileName}</span></div>
-                    <div>TOTAL_BLOCKS: <span className="font-bold text-cyan-400">{metadata.totalBlocks}</span></div>
-                    <div>ENCRYPTION: <span className="text-amber-400 font-bold">{metadata.encrypted ? 'AES-256-GCM ACTIVE' : 'DISABLED'}</span></div>
-                    <div>STATUS: <span className="text-emerald-400 font-bold">RECEIVING PACKETS...</span></div>
-                  </div>
+              <div className="grid grid-cols-2 gap-2 text-xs text-cyan-300">
+                <div>FILE_NAME: <span className="font-bold text-slate-100">{metadata.fileName}</span></div>
+                <div>TOTAL_BLOCKS: <span className="font-bold text-cyan-400">{metadata.totalBlocks}</span></div>
+                <div>SHA256: <span className="text-slate-400">{metadata.sha256.substring(0, 16)}...</span></div>
+                <div>ENCRYPTION: <span className="text-amber-400">{metadata.encrypted ? 'AES-256-GCM' : 'DISABLED'}</span></div>
+              </div>
 
-                  {metadata.encrypted && (
-                    <div className="bg-amber-950/40 p-2.5 rounded border border-amber-500/40 flex items-center justify-between">
-                      <span className="text-amber-300 font-bold text-xs flex items-center gap-1.5">
-                        🔒 ENTER PAIR CODE TO DECRYPT:
-                      </span>
-                      <input
-                        type="text"
-                        maxLength={6}
-                        value={enteredPairCode}
-                        onChange={async (e) => {
-                          const code = e.target.value;
-                          setEnteredPairCode(code);
-                          if (receiverRef.current) {
-                            receiverRef.current.setPairCode(code);
-                            const res = await receiverRef.current.checkAndFinalize();
-                            if (res) {
-                              setIsCameraActive(false);
-                              setResult(res);
-                              playSuccessBeep();
-                              if (res.sha256Match && !hasAutoDownloadedRef.current) {
-                                hasAutoDownloadedRef.current = true;
-                                triggerFileDownload(res);
-                              }
-                            }
-                          }
-                        }}
-                        className="px-3 py-1 bg-black border border-amber-500 text-amber-300 text-center font-bold tracking-widest rounded w-28 text-sm"
-                      />
-                    </div>
-                  )}
-
-                  <div className="space-y-1 pt-1">
-                    <div className="flex justify-between text-emerald-400 font-bold text-xs">
-                      <span>DOWNLOADING PROGRESS:</span>
-                      <span>{asciiProgressBar}</span>
-                    </div>
-                  </div>
+              <div className="text-xs space-y-1 pt-1">
+                <div className="flex justify-between text-cyan-400">
+                  <span>RECEIVING STREAM:</span>
+                  <span>{asciiProgressBar}</span>
                 </div>
-              )}
-            </div>
-          ) : (
-            /* Camera Off / Inactive State Card */
-            <div className="term-box-cyan p-5 rounded-lg space-y-4 bg-[#020a06] border-2 border-emerald-500/50 shadow-2xl text-center">
-              <div className="text-xs text-amber-300 font-bold uppercase tracking-wider">[!] CAMERA SHUTDOWN (INACTIVE)</div>
-              <p className="text-slate-400 text-xs">
-                No QR code scanned within 10 seconds. Re-open camera scanner when sender screen is displaying QR code.
-              </p>
-              <button
-                type="button"
-                onClick={handleReopenCamera}
-                className="px-5 py-2.5 bg-emerald-950 hover:bg-emerald-900 border-2 border-emerald-500 text-emerald-300 font-bold text-xs rounded cursor-pointer transition-colors"
-              >
-                📷 RE-OPEN CAMERA SCANNER
-              </button>
+              </div>
             </div>
           )}
         </div>
@@ -302,67 +221,30 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
             <div className="text-xs font-mono text-emerald-400 tracking-widest uppercase mb-1">
               ✓ UPI-STYLE OPTICAL SCAN SUCCESSFUL
             </div>
-            <h2 className="text-2xl font-bold text-emerald-300">
-              {result.decryptionError ? '[ 🔒 ENCRYPTED FILE RECEIVED ]' : '[ ✓ ] FILE RECEIVED & VERIFIED!'}
-            </h2>
+            <h2 className="text-2xl font-bold text-emerald-300">[ ✓ ] FILE RECEIVED & VERIFIED!</h2>
             <p className="text-xs text-slate-300 mt-1">
               {result.fileName} ({formatBytes(result.fileSize)}) IN {formatSeconds(result.elapsedSeconds)} ({result.goodputKBps} KB/S)
             </p>
           </div>
 
-          {result.decryptionError ? (
-            <div className="bg-amber-950/60 p-4 rounded border-2 border-amber-500/80 space-y-3 font-mono text-left">
-              <div className="text-amber-300 font-bold text-xs flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-amber-400" />
-                <span>🔒 PAIR CODE REQUIRED TO DECRYPT & SAVE FILE:</span>
-              </div>
-              <div className="flex gap-3 items-center justify-between">
-                <span className="text-xs text-slate-300">Enter 6-digit code shown on Sender:</span>
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={enteredPairCode}
-                  onChange={async (e) => {
-                    const code = e.target.value;
-                    setEnteredPairCode(code);
-                    if (receiverRef.current) {
-                      receiverRef.current.setPairCode(code);
-                      const newRes = await receiverRef.current.checkAndFinalize();
-                      if (newRes && !newRes.decryptionError) {
-                        setResult(newRes);
-                        playSuccessBeep();
-                        if (newRes.sha256Match && !hasAutoDownloadedRef.current) {
-                          hasAutoDownloadedRef.current = true;
-                          triggerFileDownload(newRes);
-                        }
-                      }
-                    }
-                  }}
-                  placeholder="e.g. 849201"
-                  className="px-3 py-1.5 bg-black border-2 border-amber-500 text-amber-300 text-center font-bold tracking-widest rounded w-32 text-sm focus:outline-none"
-                />
-              </div>
+          <div className="bg-black/90 p-3 rounded border border-emerald-500/40 text-xs text-left space-y-1 font-mono">
+            <div className="flex justify-between">
+              <span className="text-slate-400">FILE INTEGRITY VERIFICATION:</span>
+              {result.sha256Match ? (
+                <span className="text-emerald-400 font-bold">✓ SHA-256 MATCH</span>
+              ) : (
+                <span className="text-rose-400 font-bold">❌ HASH MISMATCH</span>
+              )}
             </div>
-          ) : (
-            <div className="bg-black/90 p-3 rounded border border-emerald-500/40 text-xs text-left space-y-1 font-mono">
-              <div className="flex justify-between">
-                <span className="text-slate-400">FILE INTEGRITY VERIFICATION:</span>
-                {result.sha256Match ? (
-                  <span className="text-emerald-400 font-bold">✓ SHA-256 MATCH</span>
-                ) : (
-                  <span className="text-rose-400 font-bold">❌ HASH MISMATCH</span>
-                )}
-              </div>
-              <div className="text-[11px] text-slate-500 break-all bg-slate-950 p-2 rounded">
-                {result.calculatedHash}
-              </div>
+            <div className="text-[11px] text-slate-500 break-all bg-slate-950 p-2 rounded">
+              {result.calculatedHash}
             </div>
-          )}
+          </div>
 
           <button
             onClick={handleDownload}
-            disabled={!result.sha256Match || Boolean(result.decryptionError)}
-            className="w-full py-3 bg-emerald-950 hover:bg-emerald-900 border-2 border-emerald-500 disabled:opacity-50 text-emerald-300 font-bold text-sm rounded flex items-center justify-center gap-2 transition-colors cursor-pointer"
+            disabled={!result.sha256Match}
+            className="w-full py-3 bg-emerald-950 hover:bg-emerald-900 border-2 border-emerald-500 text-emerald-300 font-bold text-sm rounded flex items-center justify-center gap-2 transition-colors cursor-pointer"
           >
             <Download className="w-4 h-4" />
             [ v SAVE RECONSTRUCTED FILE ]

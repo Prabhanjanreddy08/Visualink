@@ -14,7 +14,7 @@ export interface QROptions {
 }
 
 /**
- * Renders QR code string directly onto an HTMLCanvasElement with fixed 1:1 square dimensions.
+ * Renders QR code string directly onto an HTMLCanvasElement with fixed dimensions to prevent layout blinking.
  */
 export async function renderQRToCanvas(
   canvas: HTMLCanvasElement,

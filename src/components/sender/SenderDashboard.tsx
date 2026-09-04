@@ -35,10 +35,10 @@ export function SenderDashboard({ file, pairCode, onCancel }: SenderDashboardPro
     }).then((meta) => {
       setStatusText('Transmitting Optical Stream...');
       addLog(`METADATA COMPILED: TOTAL_BLOCKS=${meta.totalBlocks} BLOCK_SIZE=${meta.blockSize}B SHA256=${meta.sha256.substring(0, 8)}...`);
-      addLog('OPTICAL ENGINE START: TRANSMITTING ANIMATED QR STREAM AT 60 FPS...');
+      addLog('OPTICAL ENGINE START: TRANSMITTING ANIMATED QR STREAM AT 30 FPS...');
 
       if (canvasRef.current) {
-        session.startTransmission(canvasRef.current, 60, (m) => {
+        session.startTransmission(canvasRef.current, 30, (m) => {
           setMetrics(m);
         });
       }

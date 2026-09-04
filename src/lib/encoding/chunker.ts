@@ -15,9 +15,9 @@ export interface ChunkInfo {
  * while preserving 100% camera scanning decodability.
  */
 export function calculateOptimalBlockSize(fileSize: number): number {
-  // 256 bytes payload per QR frame guarantees Version 10 QR codes (57x57 modules)
-  // with 3x larger modules on screen for 0% dropped frames on mobile cameras.
-  return 256;
+  if (fileSize <= 512) return Math.max(64, fileSize); // Ultra-small file -> 1 single block!
+  if (fileSize <= 50 * 1024) return 384;                // <= 50 KB -> 384 B
+  return 512;                                          // > 50 KB -> 512 B
 }
 
 /**

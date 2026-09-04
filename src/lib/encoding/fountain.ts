@@ -22,79 +22,19 @@ export function mulberry32(seed: number): () => number {
 }
 
 /**
- * Robust Soliton Distribution Degree Generator
- * Returns a degree d in [1, K] given PRNG function.
- */
-const cdfCache = new Map<number, Float64Array>();
-
-function getSolitonCDF(K: number): Float64Array {
-  let cached = cdfCache.get(K);
-  if (cached) return cached;
-
-  if (K <= 1) {
-    cached = new Float64Array([0, 1.0]);
-    cdfCache.set(K, cached);
-    return cached;
-  }
-
-  const c = 0.1;
-  const delta = 0.5;
-  const R = c * Math.log(K / delta) * Math.sqrt(K);
-
-  const pdf = new Float64Array(K + 1);
-  pdf[1] = 1 / K;
-  for (let d = 2; d <= K; d++) {
-    pdf[d] = 1 / (d * (d - 1));
-  }
-
-  const tauK = Math.floor(K / R);
-  for (let d = 1; d <= K; d++) {
-    if (d < tauK) {
-      pdf[d] += R / (d * K);
-    } else if (d === tauK) {
-      pdf[d] += (R * Math.log(R / delta)) / K;
-    }
-  }
-
-  let sum = 0;
-  for (let d = 1; d <= K; d++) sum += pdf[d];
-
-  const cdf = new Float64Array(K + 1);
-  let acc = 0;
-  for (let d = 1; d <= K; d++) {
-    acc += pdf[d] / sum;
-    cdf[d] = acc;
-  }
-
-  cdfCache.set(K, cdf);
-  return cdf;
-}
-
-/**
- * Robust Soliton Distribution Degree Generator
- * Uses cached CDF table and O(log K) binary search for instant degree sampling.
+ * K(o) Fast Online Soliton Distribution Degree Generator
+ * Returns low degree d in [1, 3] optimized for optical camera channels.
+ * Capping degree at 3 ensures O(1) instant peeling propagation without high-degree decoding stalls.
  */
 export function sampleSolitonDegree(rng: () => number, K: number): number {
   if (K <= 1) return 1;
+  if (K === 2) return rng() < 0.6 ? 1 : 2;
 
-  const cdf = getSolitonCDF(K);
   const p = rng();
-
-  let low = 1;
-  let high = K;
-  let ans = 1;
-
-  while (low <= high) {
-    const mid = (low + high) >> 1;
-    if (p <= cdf[mid]) {
-      ans = mid;
-      high = mid - 1;
-    } else {
-      low = mid + 1;
-    }
-  }
-
-  return ans;
+  // 40% Degree 1 (Direct block), 45% Degree 2 (Pair XOR), 15% Degree 3 (Triplet XOR)
+  if (p < 0.40) return 1;
+  if (p < 0.85) return 2;
+  return 3;
 }
 
 /**
@@ -116,19 +56,18 @@ export function selectBlockIndices(rng: () => number, K: number, degree: number)
 }
 
 /**
- * Gets degree and block indices for a given packetId and totalBlocks K.
- * Systematic Mode: 90% systematic round-robin cycling for instant block recovery,
- * with 10% Soliton XOR packets for high-loss environments.
+ * Gets degree and block indices for a given packetId and totalBlocks K using K(o) algorithm.
+ * Systematic Interleaving: Alternates pure systematic passes (0..K-1) with K(o) low-degree fountain passes.
  */
 export function getPacketBlockMapping(packetId: number, K: number): { degree: number; indices: number[] } {
   if (K === 1) return { degree: 1, indices: [0] };
 
-  // Systematic first K packets
-  if (packetId < K) {
-    return { degree: 1, indices: [packetId] };
+  // Interleaved Systematic Pass every 2K packets for fast camera recovery
+  const cycleIndex = packetId % (2 * K);
+  if (cycleIndex < K) {
+    return { degree: 1, indices: [cycleIndex] };
   }
 
-  // Rateless Fountain LT packets (packetId >= K)
   const rng = mulberry32(packetId);
   const degree = sampleSolitonDegree(rng, K);
   const indices = selectBlockIndices(rng, K, degree);

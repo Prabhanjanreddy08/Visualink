@@ -90,7 +90,7 @@ export class SenderSession {
    */
   public startTransmission(
     canvas: HTMLCanvasElement,
-    targetFps: number = 60,
+    targetFps: number = 30,
     onMetricsUpdate?: (metrics: TransferMetrics) => void
   ): void {
     if (this.isRunning) return;
@@ -137,8 +137,8 @@ export class SenderSession {
 
     let packet: VLPacket;
 
-    // Initial 5 metadata frames for instant < 50ms lock, then refresh every 10 frames
-    if (this.renderFrameCount < 5 || (this.renderFrameCount % 10 === 0)) {
+    // Send metadata on initial 3 frames (0, 1, 2) and every 20 frames thereafter for instant lock
+    if (this.renderFrameCount < 3 || (this.renderFrameCount % 20 === 0)) {
       const metaPayload = encodeMetadataPayload(this.metadata);
       packet = {
         header: {
@@ -161,7 +161,7 @@ export class SenderSession {
     }
 
     const qrText = packetToQRString(packet);
-    await renderQRToCanvas(canvas, qrText, { width: 320, margin: 2, ecLevel: "M" });
+    await renderQRToCanvas(canvas, qrText, { width: 320, margin: 2, ecLevel: "L" });
 
     this.metrics.recordFrameRendered();
     this.renderFrameCount++;
