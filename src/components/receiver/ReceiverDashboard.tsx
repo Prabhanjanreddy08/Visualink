@@ -6,6 +6,7 @@ import { ReceiverSession, ReceiverResult } from '../../lib/transfer/receiver';
 import { TransferMetrics } from '../../lib/performance/metrics';
 import { FileMetadata } from '../../lib/protocol/metadata';
 import { CameraScanner } from './CameraScanner';
+import { playLockBeep, playSuccessBeep } from '../../lib/audio/sounds';
 import { Download, CheckCircle2, AlertTriangle, ShieldCheck, Terminal, XCircle, Zap } from 'lucide-react';
 
 export interface ReceiverDashboardProps {
@@ -38,6 +39,7 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
           setMetadata(meta);
           setSessionIdHex(session.getSessionIdHex());
           addLog(`SESSION LOCKED: 0x${session.getSessionIdHex()} FILE=${meta.fileName} TOTAL_BLOCKS=${meta.totalBlocks}`);
+          playLockBeep();
         },
         (m, guidance) => {
           setMetrics(m);
@@ -46,6 +48,7 @@ export function ReceiverDashboard({ pairCode, onCancel }: ReceiverDashboardProps
         (res) => {
           setResult(res);
           addLog(`RECONSTRUCTION COMPLETE: SHA256_MATCH=${res.sha256Match}`);
+          playSuccessBeep();
 
           // UPI-Style Auto Download Trigger
           if (res.sha256Match && !hasAutoDownloadedRef.current) {

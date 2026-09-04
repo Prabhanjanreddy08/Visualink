@@ -82,6 +82,18 @@ export function FileSelector({ onFileSelected }: FileSelectorProps) {
         {/* Drop Zone */}
         <div
           onClick={() => fileInputRef.current?.click()}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+              setSelectedFile(e.dataTransfer.files[0]);
+              setPairCode(generateRandomPairCode());
+            }
+          }}
           className="p-8 border-2 border-dashed border-emerald-500/40 hover:border-emerald-400 transition-colors cursor-pointer text-center bg-[#020704] m-4 rounded"
         >
           <input

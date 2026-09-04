@@ -69,29 +69,41 @@ export class QRFrameDecoder {
       }
     }
 
-    // 2. Fallback to jsQR Canvas decoding
+    // 2. Fallback to jsQR Canvas decoding (Downscaled to max 640px width for 9x faster JS decoding)
+    const maxTargetWidth = 640;
+    let targetWidth = width;
+    let targetHeight = height;
+
+    if (width > maxTargetWidth) {
+      targetWidth = maxTargetWidth;
+      targetHeight = Math.round((height * maxTargetWidth) / width);
+    }
+
     if (!this.offscreenCanvas) {
       this.offscreenCanvas = document.createElement("canvas");
     }
-    if (this.offscreenCanvas.width !== width || this.offscreenCanvas.height !== height) {
-      this.offscreenCanvas.width = width;
-      this.offscreenCanvas.height = height;
+    if (this.offscreenCanvas.width !== targetWidth || this.offscreenCanvas.height !== targetHeight) {
+      this.offscreenCanvas.width = targetWidth;
+      this.offscreenCanvas.height = targetHeight;
       this.offscreenCtx = this.offscreenCanvas.getContext("2d", { willReadFrequently: true });
     }
 
     if (!this.offscreenCtx) return null;
 
-    this.offscreenCtx.drawImage(video, 0, 0, width, height);
-    const imageData = this.offscreenCtx.getImageData(0, 0, width, height);
-    const code = jsQR(imageData.data, width, height, { inversionAttempts: "dontInvert" });
+    this.offscreenCtx.drawImage(video, 0, 0, targetWidth, targetHeight);
+    const imageData = this.offscreenCtx.getImageData(0, 0, targetWidth, targetHeight);
+    const code = jsQR(imageData.data, targetWidth, targetHeight, { inversionAttempts: "dontInvert" });
 
     if (code && code.data) {
-      // Estimate bounding box from jsQR location corners
+      // Scale bounding box location back to full video frame dimensions
+      const scaleX = width / targetWidth;
+      const scaleY = height / targetHeight;
+
       const loc = code.location;
-      const minX = Math.min(loc.topLeftCorner.x, loc.bottomLeftCorner.x);
-      const maxX = Math.max(loc.topRightCorner.x, loc.bottomRightCorner.x);
-      const minY = Math.min(loc.topLeftCorner.y, loc.topRightCorner.y);
-      const maxY = Math.max(loc.bottomLeftCorner.y, loc.bottomRightCorner.y);
+      const minX = Math.min(loc.topLeftCorner.x, loc.bottomLeftCorner.x) * scaleX;
+      const maxX = Math.max(loc.topRightCorner.x, loc.bottomRightCorner.x) * scaleX;
+      const minY = Math.min(loc.topLeftCorner.y, loc.topRightCorner.y) * scaleY;
+      const maxY = Math.max(loc.bottomLeftCorner.y, loc.bottomRightCorner.y) * scaleY;
 
       const bbox = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
       const guidance = this.computeGuidance(bbox, width, height);

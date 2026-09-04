@@ -26,7 +26,8 @@ export class SenderSession {
   private metrics: MetricsTracker;
   private isRunning: boolean = false;
   private isPaused: boolean = false;
-  private currentPacketId: number = 0;
+  private renderFrameCount: number = 0;
+  private dataBlockSequence: number = 0;
   private animFrameId: number | null = null;
   private cryptoKey: CryptoKey | null = null;
   private iv: Uint8Array | null = null;
@@ -97,6 +98,8 @@ export class SenderSession {
     this.isPaused = false;
     this.metrics.reset();
     this.metrics.setTotalBytes(this.file.size);
+    this.renderFrameCount = 0;
+    this.dataBlockSequence = 0;
 
     const frameIntervalMs = 1000 / Math.max(1, Math.min(60, targetFps));
     let lastRenderTime = 0;
@@ -113,7 +116,7 @@ export class SenderSession {
         if (onMetricsUpdate && this.metadata && now - lastMetricsUpdateTime >= 250) {
           lastMetricsUpdateTime = now;
           onMetricsUpdate(this.metrics.getSnapshot(
-            Math.min(this.metadata.totalBlocks, this.currentPacketId),
+            Math.min(this.metadata.totalBlocks, this.dataBlockSequence),
             this.metadata.totalBlocks
           ));
         }
@@ -126,22 +129,23 @@ export class SenderSession {
   }
 
   /**
-   * Renders next frame: alternates metadata control packets every 10 frames with Fountain data packets.
+   * Renders next frame: initial 3 metadata frames, then data frames with periodic metadata refreshes.
+   * Every single rendered frame has a unique frame packet ID (renderFrameCount).
    */
   private async renderNextFrame(canvas: HTMLCanvasElement): Promise<void> {
     if (!this.fountainEncoder || !this.metadata) return;
 
     let packet: VLPacket;
 
-    // Transmit metadata control packet every 10 frames to guarantee fast receiver lock (< 300ms)
-    if (this.currentPacketId < 5 || this.currentPacketId % 10 === 0) {
+    // Send metadata on initial 3 frames (0, 1, 2) and every 20 frames thereafter for instant lock
+    if (this.renderFrameCount < 3 || (this.renderFrameCount % 20 === 0)) {
       const metaPayload = encodeMetadataPayload(this.metadata);
       packet = {
         header: {
           version: 1,
           type: PacketType.METADATA,
           sessionId: this.sessionId,
-          packetId: this.currentPacketId,
+          packetId: this.renderFrameCount,
           totalBlocks: this.metadata.totalBlocks,
           payloadLength: metaPayload.length,
           degree: 1,
@@ -151,15 +155,16 @@ export class SenderSession {
         crc: 0,
       };
     } else {
-      // Fountain Data Packet
-      packet = this.fountainEncoder.createPacket(this.currentPacketId, this.metadata.encrypted);
+      // Fountain Data Packet: packetId = dataBlockSequence guarantees unique QR & exact seed alignment
+      packet = this.fountainEncoder.createPacket(this.dataBlockSequence, this.metadata.encrypted);
+      this.dataBlockSequence++;
     }
 
     const qrText = packetToQRString(packet);
     await renderQRToCanvas(canvas, qrText, { width: 320, margin: 2, ecLevel: "L" });
 
     this.metrics.recordFrameRendered();
-    this.currentPacketId++;
+    this.renderFrameCount++;
   }
 
   public pause(): void {
