@@ -69,8 +69,8 @@ export class QRFrameDecoder {
       }
     }
 
-    // 2. Fallback to jsQR Canvas decoding (Downscaled to max 480px width for 60 FPS JS decoding on mobile)
-    const maxTargetWidth = 480;
+    // 2. Fallback to jsQR Canvas decoding (Downscaled to max 640px width for 60 FPS JS decoding on mobile)
+    const maxTargetWidth = 640;
     let targetWidth = width;
     let targetHeight = height;
 

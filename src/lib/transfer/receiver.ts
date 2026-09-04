@@ -67,19 +67,16 @@ export class ReceiverSession {
         const now = Date.now();
 
         if (scanResult) {
-          // Instant 0.01ms skip for duplicate camera video frames
-          if (scanResult.rawValue === this.lastScannedRawValue) {
-            this.animFrameId = requestAnimationFrame(scanLoop);
-            return;
-          }
-          this.lastScannedRawValue = scanResult.rawValue;
-
-          const packet = stringToVLPacket(scanResult.rawValue);
-          if (packet) {
-            this.metrics.recordFrameScanned(true);
-            await this.processPacket(packet, onMetadataFound, onError);
-          } else {
-            this.metrics.recordFrameScanned(false);
+          const isDupFrame = scanResult.rawValue === this.lastScannedRawValue;
+          if (!isDupFrame) {
+            this.lastScannedRawValue = scanResult.rawValue;
+            const packet = stringToVLPacket(scanResult.rawValue);
+            if (packet) {
+              this.metrics.recordFrameScanned(true);
+              await this.processPacket(packet, onMetadataFound, onError);
+            } else {
+              this.metrics.recordFrameScanned(false);
+            }
           }
 
           if (onProgress && now - lastProgressTime >= 250) {
